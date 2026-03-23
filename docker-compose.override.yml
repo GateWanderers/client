@@ -1,0 +1,24 @@
+# docker-compose.override.yml — local development overrides
+#
+# Applied automatically when you run `docker compose up`.
+# NOT used in production (deploy.sh uses the base compose file only).
+#
+# Differences from production:
+#   - postgres port 5432 exposed to host (for psql / DB tools)
+#   - server port 8080 exposed directly (no nginx needed locally)
+#   - nginx service disabled
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"   # direct DB access for local tools
+
+  server:
+    ports:
+      - "8080:8080"   # direct access — skip nginx locally
+    environment:
+      TICK_INTERVAL: "${TICK_INTERVAL:-15s}"   # faster ticks for local testing
+
+  nginx:
+    profiles:
+      - production    # only starts with: docker compose --profile production up

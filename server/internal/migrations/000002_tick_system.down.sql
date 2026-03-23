@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS tick_queue;
+DROP TABLE IF EXISTS tick_state;

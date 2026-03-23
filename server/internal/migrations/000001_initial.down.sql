@@ -1,0 +1,8 @@
+DROP INDEX IF EXISTS idx_ships_agent_id;
+DROP TABLE IF EXISTS ships;
+DROP TABLE IF EXISTS agents;
+DROP TABLE IF EXISTS accounts;
+DROP TYPE IF EXISTS gw_ship_class;
+DROP TYPE IF EXISTS gw_playstyle;
+DROP TYPE IF EXISTS gw_faction;
+DROP EXTENSION IF EXISTS "pgcrypto";

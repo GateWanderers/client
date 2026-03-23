@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GateWanderers — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080b12;
+      --surface:   #0d1120;
+      --surface2:  #111828;
+      --border:    #1e2840;
+      --text:      #c8d0e0;
+      --muted:     #506070;
+      --accent:    #3070b0;
+      --accent-hi: #50a0d8;
+      --danger:    #b03030;
+      --danger-hi: #e05050;
+      --success:   #309050;
+      --warn:      #b08020;
+      --warn-hi:   #e0b030;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, monospace;
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.5rem 1.25rem;
+      background: #04060d;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #topbar h1 { font-size: 0.85rem; letter-spacing: 0.12em; color: var(--accent-hi); flex: 1; }
+    #topbar span.badge {
+      font-size: 0.7rem; padding: 0.15rem 0.5rem;
+      background: var(--danger); color: #fff; border-radius: 3px; letter-spacing: 0.08em;
+    }
+    #admin-email { font-size: 0.75rem; color: var(--muted); }
+    #refresh-timer { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    button {
+      cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+      color: var(--text); padding: 0.3rem 0.75rem; border-radius: 4px; font-size: 0.8rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    button:hover { background: #1a2540; border-color: var(--accent); }
+    button.danger { border-color: var(--danger); color: var(--danger-hi); }
+    button.danger:hover { background: #2a1010; }
+    button.success { border-color: var(--success); color: #50d080; }
+    button.success:hover { background: #0a2018; }
+    button.warn { border-color: var(--warn); color: var(--warn-hi); }
+    button.warn:hover { background: #201808; }
+    button.accent { border-color: var(--accent); color: var(--accent-hi); }
+    button.accent:hover { background: #0a1828; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── AUTH OVERLAY ── */
+    #auth-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    #auth-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 2rem; width: 320px; display: flex; flex-direction: column; gap: 0.75rem;
+    }
+    #auth-box h2 { color: var(--accent-hi); font-size: 1rem; letter-spacing: 0.1em; margin-bottom: 0.25rem; }
+    #auth-box input {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.85rem; width: 100%;
+    }
+    #auth-box input:focus { outline: none; border-color: var(--accent); }
+    #auth-error { color: var(--danger-hi); font-size: 0.8rem; min-height: 1.2em; }
+
+    /* ── LAYOUT ── */
+    #layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: 180px; flex-shrink: 0; background: var(--surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      padding: 0.75rem 0;
+    }
+    .nav-item {
+      padding: 0.55rem 1.25rem; cursor: pointer; font-size: 0.82rem; color: var(--muted);
+      border-left: 2px solid transparent; transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .nav-item:hover { color: var(--text); }
+    .nav-item.active { color: var(--accent-hi); border-left-color: var(--accent-hi); background: rgba(48,112,176,0.07); }
+    .nav-sep { height: 1px; background: var(--border); margin: 0.5rem 0; }
+    .nav-section { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; padding: 0.4rem 1.25rem 0.2rem; }
+    #sidebar-footer { margin-top: auto; padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); }
+    #logout-btn { width: 100%; }
+
+    /* ── MAIN CONTENT ── */
+    #main { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem;
+      background: var(--surface2); border-bottom: 1px solid var(--border);
+    }
+    .panel-header h2 { font-size: 0.82rem; letter-spacing: 0.08em; color: var(--accent-hi); flex: 1; }
+    .panel-body { padding: 1rem; }
+
+    /* ── HEALTH GRID ── */
+    .health-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;
+    }
+    .health-card {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 5px;
+      padding: 0.75rem 1rem;
+    }
+    .health-card .label { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 0.25rem; }
+    .health-card .value { font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .health-card .value.ok { color: var(--success); }
+    .health-card .value.warn { color: var(--warn-hi); }
+    .health-card .value.err { color: var(--danger-hi); }
+
+    /* ── STATS ROW ── */
+    .stats-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+    .stat-chip {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 5px;
+      padding: 0.6rem 1rem; min-width: 140px;
+    }
+    .stat-chip .label { font-size: 0.7rem; color: var(--muted); }
+    .stat-chip .value { font-size: 1rem; font-weight: 600; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
+
+    /* ── TICKER CONTROLS ── */
+    .ticker-controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    #ticker-status-badge {
+      font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 3px;
+      font-weight: 600; letter-spacing: 0.06em;
+    }
+    #ticker-status-badge.running { background: #0a2018; color: #50d080; border: 1px solid var(--success); }
+    #ticker-status-badge.paused  { background: #201808; color: var(--warn-hi); border: 1px solid var(--warn); }
+
+    /* ── TABLE ── */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th { text-align: left; padding: 0.4rem 0.75rem; color: var(--muted); font-weight: 600; letter-spacing: 0.06em; font-size: 0.7rem; border-bottom: 1px solid var(--border); background: var(--surface2); }
+    td { padding: 0.45rem 0.75rem; border-bottom: 1px solid rgba(30,40,64,0.5); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(48,112,176,0.04); }
+    td.muted { color: var(--muted); }
+    td.mono { font-family: monospace; font-size: 0.75rem; }
+    .banned-row td { opacity: 0.6; }
+    .badge-banned { background: var(--danger); color: #fff; font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
+    .badge-admin  { background: var(--accent); color: #fff; font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
+    .badge-ok     { color: var(--success); font-size: 0.75rem; }
+    .actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+    /* ── SEARCH BAR ── */
+    .search-bar { display: flex; gap: 0.5rem; align-items: center; }
+    .search-bar input {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.8rem; flex: 1; max-width: 280px;
+    }
+    .search-bar input:focus { outline: none; border-color: var(--accent); }
+
+    /* ── AUDIT LOG ── */
+    #audit-log { font-size: 0.75rem; font-family: monospace; display: flex; flex-direction: column; gap: 0.2rem; max-height: 400px; overflow-y: auto; }
+    .audit-entry { display: flex; gap: 0.75rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(30,40,64,0.4); }
+    .audit-entry .ts { color: var(--muted); flex-shrink: 0; }
+    .audit-entry .who { color: var(--accent-hi); flex-shrink: 0; }
+    .audit-entry .act { flex: 1; color: var(--text); }
+    .audit-entry .tgt { color: var(--muted); font-size: 0.7rem; }
+
+    /* ── CLIENT LIST ── */
+    #client-list { display: flex; flex-wrap: wrap; gap: 0.4rem; max-height: 200px; overflow-y: auto; }
+    .client-chip {
+      font-size: 0.72rem; padding: 0.2rem 0.6rem; border-radius: 3px; font-family: monospace;
+      background: var(--surface2); border: 1px solid var(--border);
+    }
+    .client-chip.anon { color: var(--muted); border-style: dashed; }
+    .client-chip.auth { color: var(--accent-hi); }
+
+    /* ── LOADING ── */
+    .loading { color: var(--muted); font-size: 0.8rem; padding: 1rem; }
+    .empty   { color: var(--muted); font-size: 0.8rem; padding: 0.5rem 0; }
+
+    /* ── SECTIONS (show/hide via nav) ── */
+    .section { display: none; flex-direction: column; gap: 1.25rem; }
+    .section.active { display: flex; }
+
+    /* ── WS STATUS DOT ── */
+    #ws-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0; transition: background 0.3s;
+    }
+    #ws-dot.connected { background: var(--success); box-shadow: 0 0 6px var(--success); }
+
+    /* ── REPORT BADGE ── */
+    .report-badge {
+      display: inline-block; background: var(--danger); color: #fff;
+      font-size: 0.65rem; font-weight: 700; border-radius: 8px;
+      padding: 0.05rem 0.4rem; margin-left: 0.35rem; min-width: 1.2em; text-align: center;
+    }
+    .report-badge.hidden { display: none; }
+
+    /* ── LAST TICK COUNTER ── */
+    #last-tick-bar {
+      font-size: 0.72rem; color: var(--muted); padding: 0.3rem 1.25rem;
+      border-bottom: 1px solid var(--border); background: var(--surface2); flex-shrink: 0;
+      display: flex; gap: 1rem; align-items: center;
+    }
+    #last-tick-bar span { font-variant-numeric: tabular-nums; }
+    #last-tick-bar .live-badge {
+      background: rgba(48,176,112,0.15); color: #50d080; border: 1px solid var(--success);
+      font-size: 0.65rem; padding: 0.1rem 0.45rem; border-radius: 3px; letter-spacing: 0.06em;
+    }
+
+    /* ── LIVE FEED ── */
+    #admin-feed-log {
+      display: flex; flex-direction: column; gap: 0; max-height: 500px; overflow-y: auto;
+    }
+    .feed-entry {
+      display: flex; gap: 0.65rem; padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(30,40,64,0.5); align-items: flex-start;
+    }
+    .feed-entry:last-child { border-bottom: none; }
+    .feed-icon { font-size: 1rem; flex-shrink: 0; padding-top: 0.05rem; }
+    .feed-body { flex: 1; min-width: 0; }
+    .feed-meta { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.15rem; font-family: monospace; }
+    .feed-text { font-size: 0.8rem; color: var(--text); word-break: break-word; }
+    .feed-empty { color: var(--muted); font-size: 0.8rem; padding: 0.5rem 0; }
+
+    /* ── NOTIFICATION TOAST ── */
+    #toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.6rem 1rem; font-size: 0.8rem; max-width: 320px;
+      opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 99;
+    }
+    #toast.visible { opacity: 1; }
+    #toast.ok   { border-color: var(--success); color: #50d080; }
+    #toast.err  { border-color: var(--danger);  color: var(--danger-hi); }
+  </style>
+</head>
+<body>
+
+<!-- Auth overlay -->
+<div id="auth-overlay">
+  <div id="auth-box">
+    <h2>GW ADMIN</h2>
+    <input id="auth-email"    type="email"    placeholder="admin email" autocomplete="username" />
+    <input id="auth-password" type="password" placeholder="password"    autocomplete="current-password" />
+    <div id="auth-error"></div>
+    <button id="auth-submit">Sign In</button>
+  </div>
+</div>
+
+<!-- Top bar -->
+<div id="topbar">
+  <h1>GATEWANDERERS <span class="badge">ADMIN</span></h1>
+  <span id="admin-email"></span>
+  <span id="ws-dot" title="WebSocket"></span>
+  <span id="refresh-timer">next refresh in <span id="countdown">60</span>s</span>
+  <button id="refresh-now-btn" class="accent" style="font-size:0.75rem;padding:0.25rem 0.6rem;">↻ Refresh</button>
+</div>
+
+<!-- Last-tick status bar -->
+<div id="last-tick-bar">
+  <span class="live-badge">LIVE</span>
+  <span id="last-tick-counter">Waiting for first tick…</span>
+</div>
+
+<!-- Layout -->
+<div id="layout">
+
+  <!-- Sidebar nav -->
+  <nav id="sidebar">
+    <div class="nav-section">OVERVIEW</div>
+    <div class="nav-item active" data-section="health">Health</div>
+    <div class="nav-item" data-section="stats">Statistics</div>
+    <div class="nav-sep"></div>
+    <div class="nav-section">GAME</div>
+    <div class="nav-item" data-section="ticker">Ticker</div>
+    <div class="nav-item" data-section="agents">Agents</div>
+    <div class="nav-item" data-section="reports">Chat Reports<span id="report-badge" class="report-badge hidden">0</span></div>
+    <div class="nav-sep"></div>
+    <div class="nav-section">SYSTEM</div>
+    <div class="nav-item" data-section="clients">WS Clients</div>
+    <div class="nav-item" data-section="audit">Audit Log</div>
+    <div class="nav-item" data-section="livefeed">Live Feed</div>
+    <div class="nav-item" data-section="gevents">Galactic Events</div>
+    <div id="sidebar-footer">
+      <button id="logout-btn" class="danger">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main id="main">
+
+    <!-- ── HEALTH ── -->
+    <div class="section active" id="section-health">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>SERVER HEALTH</h2>
+          <button class="accent" onclick="loadHealth()">Refresh</button>
+        </div>
+        <div class="panel-body">
+          <div class="health-grid" id="health-grid">
+            <div class="loading">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STATS ── -->
+    <div class="section" id="section-stats">
+      <div class="panel">
+        <div class="panel-header"><h2>GAME STATISTICS</h2><button class="accent" onclick="loadStats()">Refresh</button></div>
+        <div class="panel-body">
+          <div class="stats-row" id="stats-row"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TICKER ── -->
+    <div class="section" id="section-ticker">
+      <div class="panel">
+        <div class="panel-header"><h2>TICKER CONTROL</h2><button class="accent" onclick="loadHealth()">Refresh</button></div>
+        <div class="panel-body" style="display:flex;flex-direction:column;gap:1rem;">
+          <div class="ticker-controls">
+            <span id="ticker-status-badge" class="running">RUNNING</span>
+            <button id="btn-force-tick" class="warn" onclick="forceTick()">⚡ Force Tick</button>
+            <button id="btn-pause" class="danger" onclick="pauseTick()">⏸ Pause</button>
+            <button id="btn-resume" class="success" onclick="resumeTick()" style="display:none">▶ Resume</button>
+          </div>
+          <div class="health-grid" id="ticker-stats-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AGENTS ── -->
+    <div class="section" id="section-agents">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>AGENT MANAGEMENT</h2>
+          <div class="search-bar">
+            <input id="agent-search" type="text" placeholder="Search name or email…" />
+            <button class="accent" onclick="loadAgents()">Search</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0">
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th><th>Faction</th><th>Email</th>
+                  <th>Credits</th><th>XP</th><th>Status</th>
+                  <th>Joined</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="agents-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── REPORTS ── -->
+    <div class="section" id="section-reports">
+      <div class="panel">
+        <div class="panel-header"><h2>CHAT REPORTS</h2><button class="accent" onclick="loadReports()">Refresh</button></div>
+        <div class="panel-body" style="padding:0">
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Reported At</th><th>Reporter</th><th>Channel</th>
+                  <th>Sender</th><th>Message</th><th>Reason</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="reports-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CLIENTS ── -->
+    <div class="section" id="section-clients">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>CONNECTED WS CLIENTS</h2>
+          <button class="accent" onclick="loadClients()">Refresh</button>
+          <span id="client-count" style="font-size:0.75rem;color:var(--muted)"></span>
+        </div>
+        <div class="panel-body">
+          <div id="client-list"><div class="loading">Loading…</div></div>
+          <p style="margin-top:0.75rem;font-size:0.72rem;color:var(--muted)">
+            Dashed border = anonymous viewer &nbsp;|&nbsp; Solid = authenticated agent
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LIVE FEED ── -->
+    <div class="section" id="section-livefeed">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>LIVE EVENT FEED</h2>
+          <span style="font-size:0.72rem;color:var(--muted)">Real-time · last 100 entries</span>
+          <button class="danger" onclick="clearAdminFeed()">Clear</button>
+        </div>
+        <div class="panel-body" style="padding:0.25rem 1rem">
+          <div id="admin-feed-log"><div class="feed-empty">Waiting for events…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── GALACTIC EVENTS ── -->
+    <div class="section" id="section-gevents">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>GALACTIC EVENTS</h2>
+          <button class="accent" onclick="loadGEvents()">Refresh</button>
+        </div>
+        <div class="panel-body" style="display:flex;flex-direction:column;gap:1rem;">
+          <!-- Create event form -->
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+            <select id="gevent-type" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:4px;font-size:0.8rem;">
+              <option value="INVASION">INVASION</option>
+              <option value="TRADE_BOOM">TRADE_BOOM</option>
+              <option value="NEBULA_STORM">NEBULA_STORM</option>
+              <option value="ARMISTICE">ARMISTICE</option>
+              <option value="TOURNAMENT">TOURNAMENT</option>
+            </select>
+            <select id="gevent-galaxy" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:4px;font-size:0.8rem;">
+              <option value="all">All Galaxies</option>
+              <option value="milky_way">Milky Way</option>
+              <option value="pegasus">Pegasus</option>
+            </select>
+            <input id="gevent-hours" type="number" placeholder="Duration (h, 0=∞)" min="0" step="0.5" value="24"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:4px;font-size:0.8rem;width:140px;" />
+            <button class="warn" onclick="createGEvent()">⚡ Trigger Event</button>
+          </div>
+          <!-- Active events table -->
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Type</th><th>Galaxy</th><th>Title</th><th>Effect</th><th>Started</th><th>Ends</th><th>Action</th></tr></thead>
+              <tbody id="gevents-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AUDIT ── -->
+    <div class="section" id="section-audit">
+      <div class="panel">
+        <div class="panel-header"><h2>AUDIT LOG</h2><button class="accent" onclick="loadAudit()">Refresh</button></div>
+        <div class="panel-body" style="padding:0.5rem 1rem">
+          <div id="audit-log"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════ STATE ═══════════════════ */
+const st = {
+  token: localStorage.getItem('admin_token') || '',
+  email: localStorage.getItem('admin_email') || '',
+  tickerPaused: false,
+};
+
+let refreshInterval = null;
+let countdownValue  = 30;
+
+/* ═══════════════════ HELPERS ═══════════════════ */
+function authHeaders() {
+  return { 'Authorization': 'Bearer ' + st.token, 'Content-Type': 'application/json' };
+}
+
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'visible ' + type;
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  return d.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' });
+}
+
+function fmtDur(sec) {
+  if (!sec) return '—';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}
+
+function safeText(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+/* ═══════════════════ WEBSOCKET ═══════════════════ */
+let ws = null;
+let wsRetryDelay = 1000;
+
+function connectAdminWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = proto + '://' + location.host + '/stream?token=' + encodeURIComponent(st.token);
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    document.getElementById('ws-dot').className = 'connected';
+    wsRetryDelay = 1000;
+  };
+
+  ws.onmessage = function(evt) {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch { return; }
+
+    if (msg.type === 'tick' || msg.type === 'map_update') {
+      // Update live tick counter.
+      const ts = new Date().toLocaleTimeString('en-GB');
+      document.getElementById('last-tick-counter').textContent =
+        'Tick #' + (msg.tick || '?') + '  ·  ' + ts;
+      // Refresh game-state sections automatically.
+      const active = document.querySelector('.section.active');
+      if (active) {
+        const name = active.id.replace('section-', '');
+        if (['health', 'stats', 'ticker'].includes(name)) refreshSection(name);
+      }
+
+    } else if (msg.type === 'feed' && msg.event) {
+      const entry = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
+      prependAdminFeedEntry(entry);
+
+    } else if (msg.type === 'admin_event' && msg.event) {
+      const ev = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
+      if (ev.action === 'new_report') {
+        const count = (ev.data && ev.data.count) ? ev.data.count : '?';
+        updateReportBadge(count);
+        toast('New chat report — ' + count + ' open', 'err');
+      } else if (ev.action === 'new_registration') {
+        const name = (ev.data && ev.data.agent_name) ? ev.data.agent_name : '?';
+        const faction = (ev.data && ev.data.faction) ? ev.data.faction : '?';
+        toast('New player: ' + name + ' [' + faction + ']', 'ok');
+        // Refresh stats if visible.
+        const active = document.querySelector('.section.active');
+        if (active && active.id === 'section-stats') loadStats();
+      }
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('ws-dot').className = '';
+    setTimeout(connectAdminWS, wsRetryDelay);
+    wsRetryDelay = Math.min(wsRetryDelay * 2, 30000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+/* ═══════════════════ REPORT BADGE ═══════════════════ */
+function updateReportBadge(count) {
+  const badge = document.getElementById('report-badge');
+  if (count > 0) {
+    badge.textContent = count;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+// Load initial open-report count for badge.
+async function loadReportBadge() {
+  const resp = await fetch('/admin/stats', { headers: authHeaders() });
+  if (!resp.ok) return;
+  const d = await resp.json();
+  updateReportBadge(d.open_reports || 0);
+}
+
+/* ═══════════════════ LIVE FEED ═══════════════════ */
+const FEED_ICONS = {
+  combat: '⚔', fleet_combat: '🚀', diplomacy: '🤝',
+  gather: '⛏', trade: '💱', explore: '🔭',
+  research: '🧬', npc: '👾',
+};
+
+function feedIcon(type) {
+  for (const [k, v] of Object.entries(FEED_ICONS)) {
+    if (type && type.startsWith(k)) return v;
+  }
+  return '📡';
+}
+
+function prependAdminFeedEntry(entry) {
+  const log = document.getElementById('admin-feed-log');
+  if (!log) return;
+
+  // Remove placeholder.
+  const placeholder = log.querySelector('.feed-empty');
+  if (placeholder) log.removeChild(placeholder);
+
+  const row = document.createElement('div');
+  row.className = 'feed-entry';
+
+  const icon = document.createElement('span');
+  icon.className = 'feed-icon';
+  icon.textContent = feedIcon(entry.type);
+
+  const body = document.createElement('div');
+  body.className = 'feed-body';
+
+  const meta = document.createElement('div');
+  meta.className = 'feed-meta';
+  const ts = entry.created_at ? new Date(entry.created_at).toLocaleTimeString('en-GB') : '—';
+  const who = entry.source === 'npc'
+    ? 'NPC · ' + (entry.faction_id || '?')
+    : (entry.agent_name || '?') + ' [' + (entry.faction || '?') + ']';
+  meta.textContent = ts + ' · ' + who + ' · ' + (entry.type || '?');
+
+  const text = document.createElement('div');
+  text.className = 'feed-text';
+  text.textContent = entry.payload_en || entry.payload_de || '—';
+
+  body.appendChild(meta);
+  body.appendChild(text);
+  row.appendChild(icon);
+  row.appendChild(body);
+
+  log.insertBefore(row, log.firstChild);
+
+  // Cap at 100 entries.
+  while (log.children.length > 100) log.removeChild(log.lastChild);
+}
+
+function clearAdminFeed() {
+  const log = document.getElementById('admin-feed-log');
+  while (log.firstChild) log.removeChild(log.firstChild);
+  const ph = document.createElement('div');
+  ph.className = 'feed-empty';
+  ph.textContent = 'Feed cleared.';
+  log.appendChild(ph);
+}
+
+/* ═══════════════════ AUTH ═══════════════════ */
+async function doLogin() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl    = document.getElementById('auth-error');
+  errEl.textContent = '';
+
+  try {
+    const resp = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { errEl.textContent = data.error || 'Login failed'; return; }
+
+    // Verify admin access.
+    const hResp = await fetch('/admin/health', {
+      headers: { 'Authorization': 'Bearer ' + data.token }
+    });
+    if (hResp.status === 403) { errEl.textContent = 'Account is not an admin'; return; }
+    if (!hResp.ok) { errEl.textContent = 'Admin check failed'; return; }
+
+    st.token = data.token;
+    st.email = email;
+    localStorage.setItem('admin_token', st.token);
+    localStorage.setItem('admin_email', st.email);
+    showDashboard();
+  } catch (_) {
+    errEl.textContent = 'Network error';
+  }
+}
+
+function doLogout() {
+  st.token = '';
+  st.email = '';
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_email');
+  if (ws && ws.readyState < 2) ws.close();
+  document.getElementById('auth-overlay').style.display = 'flex';
+  clearInterval(refreshInterval);
+}
+
+/* ═══════════════════ DASHBOARD INIT ═══════════════════ */
+function showDashboard() {
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('admin-email').textContent = st.email;
+  connectAdminWS();
+  loadReportBadge();
+  startRefreshCycle();
+  loadAll();
+}
+
+function startRefreshCycle() {
+  clearInterval(refreshInterval);
+  countdownValue = 60;
+  document.getElementById('countdown').textContent = countdownValue;
+  refreshInterval = setInterval(() => {
+    countdownValue--;
+    document.getElementById('countdown').textContent = countdownValue;
+    if (countdownValue <= 0) {
+      countdownValue = 60;
+      const active = document.querySelector('.section.active');
+      if (active) refreshSection(active.id.replace('section-', ''));
+    }
+  }, 1000);
+}
+
+function refreshSection(name) {
+  ({
+    health:   loadHealth,
+    stats:    loadStats,
+    ticker:   loadHealth,
+    agents:   loadAgents,
+    reports:  loadReports,
+    clients:  loadClients,
+    audit:    loadAudit,
+    livefeed: () => {},
+    gevents:  loadGEvents,
+  }[name] || (() => {}))();
+}
+
+function loadAll() {
+  loadHealth();
+  loadStats();
+  loadAgents();
+  loadReports();
+  loadClients();
+  loadAudit();
+  loadGEvents();
+}
+
+/* ═══════════════════ NAVIGATION ═══════════════════ */
+document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    this.classList.add('active');
+    const sec = document.getElementById('section-' + this.dataset.section);
+    if (sec) sec.classList.add('active');
+    countdownValue = 30;
+    document.getElementById('countdown').textContent = countdownValue;
+  });
+});
+
+document.getElementById('refresh-now-btn').addEventListener('click', () => {
+  const active = document.querySelector('.section.active');
+  if (active) refreshSection(active.id.replace('section-', ''));
+  countdownValue = 30;
+});
+
+/* ═══════════════════ HEALTH ═══════════════════ */
+async function loadHealth() {
+  const resp = await fetch('/admin/health', { headers: authHeaders() });
+  if (!resp.ok) return;
+  const d = await resp.json();
+
+  st.tickerPaused = d.ticker_paused;
+  updateTickerUI(d);
+
+  const grid = document.getElementById('health-grid');
+  while (grid.firstChild) grid.removeChild(grid.firstChild);
+
+  const cards = [
+    { label: 'Database',      value: d.db_ok ? 'OK' : 'ERROR',  cls: d.db_ok ? 'ok' : 'err' },
+    { label: 'DB Latency',    value: d.db_latency_ms + ' ms',    cls: d.db_latency_ms < 20 ? 'ok' : d.db_latency_ms < 100 ? 'warn' : 'err' },
+    { label: 'WS Clients',    value: d.ws_clients,               cls: 'ok' },
+    { label: 'Ticker',        value: d.ticker_paused ? 'PAUSED' : 'RUNNING', cls: d.ticker_paused ? 'warn' : 'ok' },
+    { label: 'DB Tick #',     value: d.db_tick_number,           cls: '' },
+    { label: 'Ticker Count',  value: d.ticker_count,             cls: '' },
+    { label: 'Interval',      value: d.ticker_interval_s + 's',  cls: '' },
+    { label: 'Last Tick',     value: fmtDate(d.ticker_last_tick || d.db_last_tick_at), cls: '' },
+    { label: 'Server Uptime', value: fmtDur(d.uptime_sec),       cls: 'ok' },
+    { label: 'Started At',    value: fmtDate(d.ticker_started_at), cls: '' },
+  ];
+
+  cards.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'health-card';
+    const lbl = document.createElement('div');
+    lbl.className = 'label';
+    lbl.textContent = c.label;
+    const val = document.createElement('div');
+    val.className = 'value' + (c.cls ? ' ' + c.cls : '');
+    val.textContent = c.value;
+    card.appendChild(lbl);
+    card.appendChild(val);
+    grid.appendChild(card);
+  });
+
+  // Ticker stats grid.
+  const tg = document.getElementById('ticker-stats-grid');
+  while (tg.firstChild) tg.removeChild(tg.firstChild);
+  cards.slice(2).forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'health-card';
+    const lbl = document.createElement('div'); lbl.className = 'label'; lbl.textContent = c.label;
+    const val = document.createElement('div'); val.className = 'value' + (c.cls ? ' ' + c.cls : ''); val.textContent = c.value;
+    card.appendChild(lbl); card.appendChild(val); tg.appendChild(card);
+  });
+}
+
+function updateTickerUI(d) {
+  const badge = document.getElementById('ticker-status-badge');
+  const btnPause  = document.getElementById('btn-pause');
+  const btnResume = document.getElementById('btn-resume');
+  if (d.ticker_paused) {
+    badge.textContent = 'PAUSED';
+    badge.className = 'paused';
+    btnPause.style.display  = 'none';
+    btnResume.style.display = '';
+  } else {
+    badge.textContent = 'RUNNING';
+    badge.className = 'running';
+    btnPause.style.display  = '';
+    btnResume.style.display = 'none';
+  }
+}
+
+/* ═══════════════════ STATS ═══════════════════ */
+async function loadStats() {
+  const resp = await fetch('/admin/stats', { headers: authHeaders() });
+  if (!resp.ok) return;
+  const d = await resp.json();
+
+  const row = document.getElementById('stats-row');
+  while (row.firstChild) row.removeChild(row.firstChild);
+
+  const chips = [
+    { label: 'Total Accounts',     key: 'total_accounts' },
+    { label: 'Total Agents',       key: 'total_agents' },
+    { label: 'Banned Agents',      key: 'banned_agents' },
+    { label: 'Ships',              key: 'total_ships' },
+    { label: 'Active Alliances',   key: 'active_alliances' },
+    { label: 'Events (24h)',       key: 'events_24h' },
+    { label: 'World Events (24h)', key: 'world_events_24h' },
+    { label: 'Chat Msgs (24h)',    key: 'chat_messages_24h' },
+    { label: 'Open Reports',       key: 'open_reports' },
+    { label: 'Tick Queue',         key: 'tick_queue_depth' },
+    { label: 'WS Clients',         key: 'ws_clients' },
+  ];
+
+  chips.forEach(c => {
+    const chip = document.createElement('div');
+    chip.className = 'stat-chip';
+    const lbl = document.createElement('div'); lbl.className = 'label'; lbl.textContent = c.label;
+    const val = document.createElement('div'); val.className = 'value'; val.textContent = d[c.key] ?? '—';
+    chip.appendChild(lbl); chip.appendChild(val); row.appendChild(chip);
+  });
+}
+
+/* ═══════════════════ TICKER CONTROLS ═══════════════════ */
+async function forceTick() {
+  const btn = document.getElementById('btn-force-tick');
+  btn.disabled = true;
+  const resp = await fetch('/admin/tick/force', { method: 'POST', headers: authHeaders() });
+  btn.disabled = false;
+  if (resp.ok) toast('Tick queued', 'ok');
+  else toast('Failed to force tick', 'err');
+}
+
+async function pauseTick() {
+  const resp = await fetch('/admin/tick/pause', { method: 'POST', headers: authHeaders() });
+  if (resp.ok) { toast('Ticker paused', 'ok'); loadHealth(); }
+  else toast('Failed to pause ticker', 'err');
+}
+
+async function resumeTick() {
+  const resp = await fetch('/admin/tick/resume', { method: 'POST', headers: authHeaders() });
+  if (resp.ok) { toast('Ticker resumed', 'ok'); loadHealth(); }
+  else toast('Failed to resume ticker', 'err');
+}
+
+/* ═══════════════════ AGENTS ═══════════════════ */
+async function loadAgents() {
+  const q = document.getElementById('agent-search').value.trim();
+  const resp = await fetch('/admin/agents?q=' + encodeURIComponent(q), { headers: authHeaders() });
+  const tbody = document.getElementById('agents-tbody');
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+  if (!resp.ok) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td'); td.colSpan = 8; td.className = 'loading';
+    td.textContent = 'Failed to load agents'; tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+
+  const d = await resp.json();
+  if (!d.agents.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td'); td.colSpan = 8; td.className = 'empty';
+    td.textContent = 'No agents found'; tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+
+  d.agents.forEach(a => {
+    const tr = document.createElement('tr');
+    if (a.banned_at) tr.className = 'banned-row';
+
+    function cell(content, cls) {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      if (typeof content === 'string' || typeof content === 'number') {
+        td.textContent = content;
+      } else {
+        td.appendChild(content);
+      }
+      return td;
+    }
+
+    // Name + badges.
+    const nameWrap = document.createElement('span');
+    nameWrap.textContent = a.name + ' ';
+    if (a.is_admin) {
+      const b = document.createElement('span'); b.className = 'badge-admin'; b.textContent = 'ADMIN';
+      nameWrap.appendChild(b);
+    }
+    if (a.banned_at) {
+      const b = document.createElement('span'); b.className = 'badge-banned'; b.textContent = 'BANNED';
+      nameWrap.appendChild(b);
+    }
+
+    tr.appendChild(cell(nameWrap));
+    tr.appendChild(cell(a.faction, 'muted'));
+    tr.appendChild(cell(a.email, 'mono'));
+    tr.appendChild(cell(a.credits.toLocaleString()));
+    tr.appendChild(cell(a.experience.toLocaleString()));
+    tr.appendChild(cell(a.status || '—', 'muted'));
+    tr.appendChild(cell(fmtDate(a.created_at), 'muted'));
+
+    // Actions cell.
+    const actionsTd = document.createElement('td');
+    const actDiv = document.createElement('div'); actDiv.className = 'actions';
+
+    if (!a.banned_at) {
+      const banBtn = document.createElement('button');
+      banBtn.className = 'danger'; banBtn.textContent = 'Ban';
+      banBtn.addEventListener('click', () => banAgent(a.agent_id, a.name));
+      actDiv.appendChild(banBtn);
+    } else {
+      const unbanBtn = document.createElement('button');
+      unbanBtn.className = 'success'; unbanBtn.textContent = 'Unban';
+      unbanBtn.addEventListener('click', () => unbanAgent(a.agent_id, a.name));
+      actDiv.appendChild(unbanBtn);
+    }
+
+    const kickBtn = document.createElement('button');
+    kickBtn.className = 'warn'; kickBtn.textContent = 'Kick WS';
+    kickBtn.addEventListener('click', () => kickAgent(a.agent_id, a.name));
+    actDiv.appendChild(kickBtn);
+
+    if (!a.is_admin) {
+      const promBtn = document.createElement('button');
+      promBtn.className = 'accent'; promBtn.textContent = '↑ Admin';
+      promBtn.addEventListener('click', () => promoteAgent(a.account_id, a.name));
+      actDiv.appendChild(promBtn);
+    } else {
+      const demBtn = document.createElement('button');
+      demBtn.className = 'warn'; demBtn.textContent = '↓ Demote';
+      demBtn.addEventListener('click', () => demoteAgent(a.account_id, a.name));
+      actDiv.appendChild(demBtn);
+    }
+
+    actionsTd.appendChild(actDiv);
+    tr.appendChild(actionsTd);
+    tbody.appendChild(tr);
+  });
+}
+
+async function banAgent(agentID, name) {
+  const reason = prompt('Ban reason for ' + name + ' (optional):') ?? '';
+  if (reason === null) return;
+  const resp = await fetch('/admin/agents/' + agentID + '/ban', {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ reason }),
+  });
+  if (resp.ok) { toast(name + ' banned', 'ok'); loadAgents(); }
+  else toast('Ban failed', 'err');
+}
+
+async function unbanAgent(agentID, name) {
+  if (!confirm('Unban ' + name + '?')) return;
+  const resp = await fetch('/admin/agents/' + agentID + '/ban', {
+    method: 'DELETE', headers: authHeaders(),
+  });
+  if (resp.ok) { toast(name + ' unbanned', 'ok'); loadAgents(); }
+  else toast('Unban failed', 'err');
+}
+
+async function kickAgent(agentID, name) {
+  if (!confirm('Kick WS connections for ' + name + '?')) return;
+  const resp = await fetch('/admin/agents/' + agentID + '/kick', {
+    method: 'POST', headers: authHeaders(),
+  });
+  if (resp.ok) toast(name + ' kicked', 'ok');
+  else toast('Kick failed', 'err');
+}
+
+async function promoteAgent(accountID, name) {
+  if (!confirm('Promote ' + name + ' to admin?')) return;
+  const resp = await fetch('/admin/accounts/' + accountID + '/promote', {
+    method: 'POST', headers: authHeaders(),
+  });
+  if (resp.ok) { toast(name + ' promoted to admin', 'ok'); loadAgents(); }
+  else toast('Promote failed', 'err');
+}
+
+async function demoteAgent(accountID, name) {
+  if (!confirm('Revoke admin from ' + name + '?')) return;
+  const resp = await fetch('/admin/accounts/' + accountID + '/promote', {
+    method: 'DELETE', headers: authHeaders(),
+  });
+  if (resp.ok) { toast(name + ' demoted', 'ok'); loadAgents(); }
+  else { const d = await resp.json(); toast(d.error || 'Demote failed', 'err'); }
+}
+
+document.getElementById('agent-search').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') loadAgents();
+});
+
+/* ═══════════════════ REPORTS ═══════════════════ */
+async function loadReports() {
+  const resp = await fetch('/admin/chat/reports', { headers: authHeaders() });
+  const tbody = document.getElementById('reports-tbody');
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+  if (!resp.ok) {
+    const tr = document.createElement('tr'); const td = document.createElement('td');
+    td.colSpan = 7; td.className = 'loading'; td.textContent = 'Failed to load reports';
+    tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+
+  const d = await resp.json();
+  if (!d.reports.length) {
+    const tr = document.createElement('tr'); const td = document.createElement('td');
+    td.colSpan = 7; td.className = 'empty'; td.textContent = 'No open reports';
+    tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+
+  d.reports.forEach(rp => {
+    const tr = document.createElement('tr');
+    function cell(txt, cls) {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      td.textContent = txt || '—';
+      return td;
+    }
+
+    // Truncate message content.
+    const preview = (rp.content || '').length > 80 ? rp.content.slice(0, 80) + '…' : rp.content;
+
+    tr.appendChild(cell(fmtDate(rp.reported_at), 'muted'));
+    tr.appendChild(cell(rp.reporter_name));
+    tr.appendChild(cell(rp.channel, 'mono'));
+    tr.appendChild(cell(rp.sender_name));
+    tr.appendChild(cell(preview));
+    tr.appendChild(cell(rp.reason, 'muted'));
+
+    const actionsTd = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.className = 'danger'; delBtn.textContent = 'Delete Msg';
+    delBtn.addEventListener('click', () => deleteMessage(rp.message_id));
+    actionsTd.appendChild(delBtn);
+    tr.appendChild(actionsTd);
+    tbody.appendChild(tr);
+  });
+}
+
+async function deleteMessage(msgID) {
+  if (!confirm('Delete this message permanently?')) return;
+  const resp = await fetch('/admin/chat/messages/' + msgID, {
+    method: 'DELETE', headers: authHeaders(),
+  });
+  if (resp.ok) { toast('Message deleted', 'ok'); loadReports(); }
+  else toast('Delete failed', 'err');
+}
+
+/* ═══════════════════ CLIENTS ═══════════════════ */
+async function loadClients() {
+  const resp = await fetch('/admin/clients', { headers: authHeaders() });
+  const list  = document.getElementById('client-list');
+  const count = document.getElementById('client-count');
+  while (list.firstChild) list.removeChild(list.firstChild);
+
+  if (!resp.ok) {
+    const d = document.createElement('div'); d.className = 'loading'; d.textContent = 'Failed';
+    list.appendChild(d); return;
+  }
+
+  const d = await resp.json();
+  count.textContent = d.count + ' connected';
+
+  if (!d.clients.length) {
+    const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No clients';
+    list.appendChild(e); return;
+  }
+
+  d.clients.forEach(id => {
+    const chip = document.createElement('div');
+    chip.className = 'client-chip ' + (id.startsWith('anon:') ? 'anon' : 'auth');
+    chip.textContent = id.length > 36 ? id.slice(0, 36) + '…' : id;
+    chip.title = id;
+    list.appendChild(chip);
+  });
+}
+
+/* ═══════════════════ GALACTIC EVENTS ═══════════════════ */
+async function loadGEvents() {
+  const resp = await fetch('/galactic-events', { headers: authHeaders() });
+  const tbody = document.getElementById('gevents-tbody');
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  if (!resp.ok) {
+    const tr = document.createElement('tr'); const td = document.createElement('td');
+    td.colSpan = 7; td.className = 'loading'; td.textContent = 'Failed'; tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+  const d = await resp.json();
+  if (!d.events.length) {
+    const tr = document.createElement('tr'); const td = document.createElement('td');
+    td.colSpan = 7; td.className = 'empty'; td.textContent = 'No active galactic events';
+    tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+  d.events.forEach(ev => {
+    const tr = document.createElement('tr');
+    function cell(t, cls) { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = t || '—'; return td; }
+    let effectStr = '—';
+    try { effectStr = JSON.stringify(JSON.parse(ev.effect), null, 0); } catch {}
+    tr.appendChild(cell(ev.event_type, 'mono'));
+    tr.appendChild(cell(ev.galaxy_id, 'muted'));
+    tr.appendChild(cell(ev.title_en));
+    tr.appendChild(cell(effectStr, 'mono'));
+    tr.appendChild(cell(fmtDate(ev.started_at), 'muted'));
+    tr.appendChild(cell(ev.ends_at ? fmtDate(ev.ends_at) : '∞', 'muted'));
+    const actionTd = document.createElement('td');
+    const endBtn = document.createElement('button'); endBtn.className = 'danger'; endBtn.textContent = 'End';
+    endBtn.addEventListener('click', () => endGEvent(ev.id, ev.event_type));
+    actionTd.appendChild(endBtn); tr.appendChild(actionTd); tbody.appendChild(tr);
+  });
+}
+
+async function createGEvent() {
+  const type = document.getElementById('gevent-type').value;
+  const galaxy = document.getElementById('gevent-galaxy').value;
+  const hours = parseFloat(document.getElementById('gevent-hours').value) || 0;
+  const resp = await fetch('/admin/galactic-events', {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ event_type: type, galaxy_id: galaxy, duration_hours: hours }),
+  });
+  if (resp.ok) { toast('Galactic event triggered: ' + type, 'ok'); loadGEvents(); }
+  else { const d = await resp.json(); toast(d.error || 'Failed', 'err'); }
+}
+
+async function endGEvent(eventID, type) {
+  if (!confirm('End ' + type + '?')) return;
+  const resp = await fetch('/admin/galactic-events/' + eventID, { method: 'DELETE', headers: authHeaders() });
+  if (resp.ok) { toast('Event ended', 'ok'); loadGEvents(); }
+  else toast('Failed to end event', 'err');
+}
+
+/* ═══════════════════ AUDIT LOG ═══════════════════ */
+async function loadAudit() {
+  const resp = await fetch('/admin/audit', { headers: authHeaders() });
+  const log  = document.getElementById('audit-log');
+  while (log.firstChild) log.removeChild(log.firstChild);
+
+  if (!resp.ok) {
+    const d = document.createElement('div'); d.className = 'loading'; d.textContent = 'Failed';
+    log.appendChild(d); return;
+  }
+
+  const d = await resp.json();
+  if (!d.entries.length) {
+    const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No entries';
+    log.appendChild(e); return;
+  }
+
+  d.entries.forEach(e => {
+    const row = document.createElement('div'); row.className = 'audit-entry';
+
+    const ts  = document.createElement('span'); ts.className  = 'ts';  ts.textContent = fmtDate(e.created_at);
+    const who = document.createElement('span'); who.className = 'who'; who.textContent = e.admin_email;
+    const act = document.createElement('span'); act.className = 'act'; act.textContent = e.action;
+    const tgt = document.createElement('span'); tgt.className = 'tgt';
+    tgt.textContent = e.target_id ? '→ ' + e.target_id.slice(0, 8) + '…' : '';
+
+    row.appendChild(ts); row.appendChild(who); row.appendChild(act); row.appendChild(tgt);
+    log.appendChild(row);
+  });
+}
+
+/* ═══════════════════ INIT ═══════════════════ */
+document.getElementById('auth-submit').addEventListener('click', doLogin);
+document.getElementById('auth-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('logout-btn').addEventListener('click', doLogout);
+
+(function init() {
+  if (st.token) {
+    // Try to use saved token.
+    fetch('/admin/health', { headers: authHeaders() }).then(r => {
+      if (r.ok) showDashboard();
+      else { st.token = ''; localStorage.removeItem('admin_token'); }
+    }).catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>

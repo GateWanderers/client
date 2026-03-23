@@ -1,0 +1,29 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Go build artifacts
+server/gatewanderers
+/gatewanderers
+
+# Binaries in /tmp or local
+/tmp/
+
+# Docker volumes / data
+postgres-data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go test cache / coverage
+*.test
+*.out
+coverage.html

@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS combat_logs;
+ALTER TABLE agents DROP COLUMN IF EXISTS status;

@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GateWanderers — Galaxy Map</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0c14;
+      --surface:   #0d1020;
+      --border:    #1e2840;
+      --text:      #c8d0e0;
+      --muted:     #607090;
+      --accent:    #4080c0;
+      --accent-hi: #60a0e0;
+      --danger:    #c04040;
+      --success:   #40a060;
+      --warn:      #c09030;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 1rem;
+      background: #080b12;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    #topbar h1 {
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      color: var(--accent-hi);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .tb-sep { flex: 1; }
+
+    select, button, input[type="text"], input[type="password"], textarea {
+      background: #161a26;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.6rem;
+    }
+
+    select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); }
+
+    button {
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:hover:not(:disabled) { background: #202840; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary { border-color: var(--accent);  color: var(--accent-hi); }
+    .btn-danger  { border-color: var(--danger);  color: #e06060; }
+    .btn-warn    { border-color: var(--warn);    color: #e0b040; }
+
+    #status-badge { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+    #lang-toggle  { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+
+    /* ── MAIN LAYOUT ── */
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── MAP ── */
+    #map-wrap { flex: 1; position: relative; background: var(--surface); overflow: hidden; }
+    #map-svg  { display: block; width: 100%; height: 100%; }
+
+    .gate-link { stroke: #2a3860; stroke-width: 1; stroke-dasharray: 4 4; }
+
+    .sys-circle {
+      fill: #3a4060; stroke: #5060a0; stroke-width: 1.5;
+      cursor: pointer; transition: fill 0.2s;
+    }
+    .sys-circle:hover { fill: #4a5080; }
+
+    .npc-halo { fill-opacity: 0.08; stroke-opacity: 0.25; stroke-width: 1; }
+
+    .sys-group { cursor: pointer; }
+    .sys-group:hover .sys-circle { fill: #4a5080; }
+
+    .agent-marker { transition: transform 4s ease-in-out; cursor: pointer; }
+    .agent-marker polygon { stroke: #ffffff33; stroke-width: 0.8; opacity: 0.9; }
+
+    .sys-label {
+      fill: #8090b8; font-size: 9px; text-anchor: middle;
+      pointer-events: none; font-family: inherit;
+    }
+
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: 280px; flex-shrink: 0;
+      background: #080b12; border-left: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    #sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+
+    .tab-btn {
+      flex: 1; background: none; border: none;
+      border-bottom: 2px solid transparent; border-radius: 0;
+      color: var(--muted); font-size: 0.78rem; padding: 0.5rem 0.25rem;
+      text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+    }
+    .tab-btn.active { color: var(--accent-hi); border-bottom-color: var(--accent); }
+
+    .tab-panel {
+      flex: 1; overflow-y: auto; padding: 0.75rem;
+      display: none; flex-direction: column; gap: 0.6rem;
+    }
+    .tab-panel.active { display: flex; }
+
+    /* ── AUTH PANEL ── */
+    #auth-panel {
+      padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    #auth-panel h2 { font-size: 0.9rem; color: var(--muted); text-transform: uppercase; }
+    #auth-panel input  { width: 100%; padding: 0.4rem 0.6rem; }
+    #auth-panel button { width: 100%; padding: 0.4rem; }
+    #auth-error { color: #e06060; font-size: 0.78rem; min-height: 1rem; }
+
+    /* ── DASHBOARD ── */
+    .section-label {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 0.25rem;
+    }
+
+    .stat-row { display: flex; justify-content: space-between; font-size: 0.82rem; }
+    .stat-key { color: var(--muted); }
+    .stat-val { color: var(--text); font-variant-numeric: tabular-nums; }
+
+    .cooldown-info { font-size: 0.72rem; color: var(--muted); }
+
+    /* ── MISSIONS ── */
+    .mission-card {
+      background: #10141f;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.45rem 0.55rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .mission-card.completed { border-color: var(--success); opacity: 0.7; }
+    .mission-card.expired   { border-color: var(--danger);  opacity: 0.5; }
+    .mission-title { font-weight: 600; color: var(--accent-hi); font-size: 0.82rem; }
+    .mission-desc  { color: var(--muted); font-size: 0.75rem; line-height: 1.4; }
+    .mission-meta  { display: flex; gap: 0.75rem; font-size: 0.72rem; color: var(--muted); flex-wrap: wrap; }
+    .mission-meta .reward { color: var(--warn); }
+    .mission-progress-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .mission-progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+    .mission-card.completed .mission-progress-fill { background: var(--success); }
+
+    /* ── CHAT ── */
+    #chat-log {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      min-height: 0;
+    }
+    .chat-msg { line-height: 1.4; }
+    .chat-msg .chat-sender { color: var(--accent-hi); font-weight: 600; }
+    .chat-msg .chat-ts     { color: var(--muted); font-size: 0.7rem; margin-left: 0.3rem; }
+    .chat-msg .chat-body   { color: var(--text); }
+    .chat-msg .chat-actions { display: none; gap: 0.25rem; }
+    .chat-msg:hover .chat-actions { display: inline-flex; }
+    .chat-actions button {
+      font-size: 0.68rem; padding: 0.1rem 0.3rem;
+      border-color: var(--border); color: var(--muted);
+    }
+
+    #chat-channel-select { font-size: 0.8rem; padding: 0.25rem 0.4rem; }
+
+    #chat-input-row {
+      display: flex;
+      gap: 0.4rem;
+      flex-shrink: 0;
+      padding-top: 0.4rem;
+      border-top: 1px solid var(--border);
+    }
+    #chat-input {
+      flex: 1;
+      font-size: 0.82rem;
+      padding: 0.3rem 0.5rem;
+    }
+    #chat-send-btn { flex-shrink: 0; font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+
+    /* ── DETAIL POPUP ── */
+    #detail-overlay {
+      position: absolute; top: 0.75rem; left: 0.75rem;
+      background: rgba(8, 11, 18, 0.92); border: 1px solid var(--border);
+      border-radius: 6px; padding: 0.75rem; max-width: 220px;
+      pointer-events: all; backdrop-filter: blur(4px); display: none; z-index: 10;
+    }
+    #detail-overlay h3 { font-size: 0.9rem; color: var(--accent-hi); margin-bottom: 0.4rem; }
+    #detail-overlay .close-btn {
+      position: absolute; top: 0.4rem; right: 0.5rem;
+      background: none; border: none; color: var(--muted); font-size: 1rem; cursor: pointer;
+    }
+    #detail-list { font-size: 0.78rem; color: var(--muted); }
+    #detail-list li { list-style: none; padding: 0.15rem 0; }
+
+    /* ── LEGEND ── */
+    #legend {
+      position: absolute; bottom: 0.75rem; left: 0.75rem;
+      display: flex; flex-wrap: wrap; gap: 0.4rem 1rem;
+      font-size: 0.72rem; pointer-events: none;
+    }
+    .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+    /* ── FEED PANEL ── */
+    #feed-panel {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 140px;
+      background: rgba(8, 11, 18, 0.88);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(4px);
+      transition: height 0.2s;
+      z-index: 5;
+    }
+    #feed-panel.collapsed { height: 28px; }
+
+    #feed-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.2rem 0.6rem;
+      flex-shrink: 0;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid var(--border);
+    }
+    #feed-header span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    #feed-toggle-btn { background: none; border: none; color: var(--muted); font-size: 0.8rem; padding: 0; cursor: pointer; }
+
+    #feed-filters { display: flex; gap: 0.4rem; margin-left: auto; }
+    #feed-filters select { font-size: 0.72rem; padding: 0.1rem 0.3rem; }
+
+    #feed-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.3rem 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      font-size: 0.76rem;
+    }
+    .feed-entry { display: flex; gap: 0.4rem; line-height: 1.3; }
+    .feed-entry .fe-icon  { flex-shrink: 0; width: 1rem; text-align: center; }
+    .feed-entry .fe-agent { color: var(--accent-hi); flex-shrink: 0; }
+    .feed-entry .fe-text  { color: var(--text); }
+    .feed-entry .fe-ts    { color: var(--muted); font-size: 0.68rem; flex-shrink: 0; margin-left: auto; }
+
+    /* ── WS INDICATOR ── */
+    #ws-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #404040; display: inline-block; flex-shrink: 0;
+    }
+    #ws-dot.connected    { background: var(--success); }
+    #ws-dot.reconnecting { background: var(--warn); }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <h1>GateWanderers</h1>
+  <select id="galaxy-select">
+    <option value="milky_way">Milky Way</option>
+    <option value="pegasus">Pegasus</option>
+    <option value="destiny">Destiny's Path</option>
+  </select>
+  <div id="ws-dot" title="WebSocket"></div>
+  <span id="status-badge">—</span>
+  <div class="tb-sep"></div>
+  <button id="lang-toggle" class="btn-primary">DE</button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- GALACTIC EVENT BANNER -->
+  <div id="event-banner" style="display:none;background:linear-gradient(90deg,#1a0808,#2a1010,#1a0808);border-bottom:1px solid var(--danger);padding:0.35rem 1rem;font-size:0.78rem;color:var(--warn-hi);display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">
+    <span style="font-size:1rem;">⚠</span>
+    <div id="event-banner-text" style="flex:1;"></div>
+    <button onclick="document.getElementById('event-banner').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:1rem;">✕</button>
+  </div>
+
+  <!-- MAP -->
+  <div id="map-wrap">
+    <svg id="map-svg" xmlns="http://www.w3.org/2000/svg">
+      <g id="halos-layer"></g>
+      <g id="links-layer"></g>
+      <g id="systems-layer"></g>
+      <g id="agents-layer"></g>
+      <!-- Control legend -->
+      <g id="ctrl-legend" transform="translate(10,10)" font-size="9" font-family="inherit">
+        <rect x="0" y="0" width="120" height="52" fill="#0a0c14cc" rx="4"/>
+        <circle cx="12" cy="12" r="5" fill="none" stroke="#884444" stroke-width="1.5"/>
+        <text x="22" y="16" fill="#8090b8">NPC controlled</text>
+        <circle cx="12" cy="28" r="5" fill="none" stroke="#44aa66" stroke-width="2.5"/>
+        <text x="22" y="32" fill="#8090b8">Player controlled</text>
+        <circle cx="12" cy="44" r="5" fill="none" stroke="#444466" stroke-width="1.5" opacity="0.5"/>
+        <text x="22" y="48" fill="#8090b8">Unclaimed</text>
+      </g>
+    </svg>
+
+    <!-- SYSTEM DETAIL POPUP -->
+    <div id="detail-overlay">
+      <button class="close-btn" id="detail-close">&#x2715;</button>
+      <h3 id="detail-name"></h3>
+      <ul id="detail-list"></ul>
+    </div>
+
+    <!-- FEED PANEL -->
+    <div id="feed-panel">
+      <div id="feed-header">
+        <button id="feed-toggle-btn" title="Toggle feed">&#x25BC;</button>
+        <span id="lbl-feed">Agent Comms Feed</span>
+        <div id="feed-filters">
+          <select id="feed-galaxy-filter">
+            <option value="">All galaxies</option>
+            <option value="milky_way">Milky Way</option>
+            <option value="pegasus">Pegasus</option>
+            <option value="destiny">Destiny</option>
+          </select>
+          <select id="feed-type-filter">
+            <option value="">All types</option>
+            <option value="diplomacy">Diplomacy</option>
+            <option value="combat">Combat</option>
+            <option value="fleet_combat">Fleet Combat</option>
+            <option value="accept_trade">Trade</option>
+          </select>
+        </div>
+      </div>
+      <div id="feed-log" aria-live="polite" aria-label="Agent comms feed"></div>
+    </div>
+
+    <!-- LEGEND -->
+    <div id="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#4080e0"></span>Tau'ri</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#e08830"></span>Free Jaffa</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#9060d0"></span>Gate Nomad</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#d04040"></span>Sys. Lord</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#40b060"></span>Wraith</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#d0a820"></span>Ancient</div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <!-- AUTH PANEL -->
+    <div id="auth-panel">
+      <h2 id="auth-title">Login</h2>
+      <input type="text"     id="auth-email"    placeholder="E-Mail" autocomplete="username" />
+      <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" />
+      <button class="btn-primary" id="auth-submit">Login</button>
+      <div id="auth-error" role="alert"></div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" style="display:none; flex-direction:column; height:100%; overflow:hidden;">
+      <div id="sidebar-tabs">
+        <button class="tab-btn active" data-tab="tab-agent">Agent</button>
+        <button class="tab-btn"        data-tab="tab-inv">Inv</button>
+        <button class="tab-btn"        data-tab="tab-mission">Mission</button>
+        <button class="tab-btn"        data-tab="tab-chat">Chat</button>
+        <button class="tab-btn"        data-tab="tab-bounty">Bounty</button>
+        <button class="tab-btn"        data-tab="tab-leaderboard">⭐</button>
+      </div>
+
+      <!-- AGENT TAB -->
+      <div class="tab-panel active" id="tab-agent">
+        <div class="section-label" id="lbl-status">Status</div>
+        <div class="stat-row"><span class="stat-key" id="lbl-name">Name</span><span class="stat-val" id="val-name">—</span></div>
+        <div class="stat-row"><span class="stat-key" id="lbl-faction">Faction</span><span class="stat-val" id="val-faction">—</span></div>
+        <div class="stat-row"><span class="stat-key" id="lbl-credits">Credits</span><span class="stat-val" id="val-credits">—</span></div>
+        <div class="stat-row"><span class="stat-key" id="lbl-xp">XP</span><span class="stat-val" id="val-xp">—</span></div>
+        <div class="stat-row"><span class="stat-key" id="lbl-ship">Ship</span><span class="stat-val" id="val-ship">—</span></div>
+        <div class="stat-row"><span class="stat-key" id="lbl-location">Location</span><span class="stat-val" id="val-location">—</span></div>
+        <div class="stat-row"><span class="stat-key" id="lbl-hull">Hull</span><span class="stat-val" id="val-hull">—</span></div>
+
+        <div class="section-label">Ship Systems</div>
+        <div id="ship-upgrade-panel" style="font-size:0.78rem;display:flex;flex-direction:column;gap:0.3rem;">
+          <div id="ship-upgrades-display" style="color:var(--muted)">—</div>
+          <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.3rem;">
+            <button class="btn-primary" style="font-size:0.72rem;padding:0.2rem 0.45rem" onclick="queueUpgrade('weapon')">⚔ Weapon</button>
+            <button class="btn-primary" style="font-size:0.72rem;padding:0.2rem 0.45rem" onclick="queueUpgrade('shield')">🛡 Shield</button>
+            <button class="btn-primary" style="font-size:0.72rem;padding:0.2rem 0.45rem" onclick="queueUpgrade('engine')">⚡ Engine</button>
+            <button class="btn-primary" style="font-size:0.72rem;padding:0.2rem 0.45rem" onclick="queueUpgrade('cargo')">📦 Cargo</button>
+            <button class="btn-warn"    style="font-size:0.72rem;padding:0.2rem 0.45rem" onclick="queueRepair()">🔧 Repair</button>
+          </div>
+        </div>
+
+        <div class="section-label" id="lbl-alliances-hdr">Alliances</div>
+        <div id="val-alliances" class="stat-val" style="font-size:0.78rem;color:var(--muted)">—</div>
+
+        <div class="section-label" id="lbl-actions">Actions</div>
+        <button class="btn-warn"   id="veto-btn">Veto (1/h)</button>
+        <div class="cooldown-info" id="veto-cd"></div>
+        <button class="btn-danger" id="override-btn">Override (1/d)</button>
+        <div class="cooldown-info" id="override-cd"></div>
+        <button class="btn-primary" id="logout-btn" style="margin-top:auto">Logout</button>
+      </div>
+
+      <!-- INVENTORY TAB -->
+      <div class="tab-panel" id="tab-inv">
+        <div class="section-label" id="lbl-inventory">Inventory</div>
+        <div id="inv-list" style="font-size:0.82rem;color:var(--muted)">—</div>
+        <div class="section-label" id="lbl-research">Research</div>
+        <div id="research-list" style="font-size:0.82rem;color:var(--muted)">—</div>
+      </div>
+
+      <!-- MISSION TAB -->
+      <div class="tab-panel" id="tab-mission" style="flex-direction:column;gap:0.5rem;overflow-y:auto;">
+        <div class="section-label">Active Missions</div>
+        <div id="mission-list" style="display:flex;flex-direction:column;gap:0.5rem;font-size:0.78rem;"></div>
+        <div id="mission-empty" style="color:var(--muted);font-size:0.78rem;display:none;">No active missions. Check back next tick.</div>
+      </div>
+
+      <!-- CHAT TAB -->
+      <div class="tab-panel" id="tab-chat" style="flex-direction:column;">
+        <div style="display:flex;align-items:center;gap:0.4rem;flex-shrink:0;">
+          <div class="section-label" id="lbl-chat" style="border:none;padding:0;flex:1">Chat</div>
+          <select id="chat-channel-select">
+            <option value="global">Global</option>
+          </select>
+        </div>
+        <div id="chat-log" aria-live="polite" aria-label="Chat messages"></div>
+        <div id="chat-input-row">
+          <input type="text" id="chat-input" id="lbl-chat-input" placeholder="Message…" maxlength="500" />
+          <button class="btn-primary" id="chat-send-btn" id="lbl-send">&rarr;</button>
+        </div>
+      </div>
+      <!-- BOUNTY TAB -->
+      <div class="tab-panel" id="tab-bounty" style="flex-direction:column;gap:0.4rem;">
+        <div class="section-label">Active Bounties</div>
+        <div id="bounty-list" style="font-size:0.78rem;overflow-y:auto;flex:1;"></div>
+        <div class="section-label" style="margin-top:0.5rem;">Place Bounty</div>
+        <input type="text" id="bounty-target-id" placeholder="Target Agent ID" style="font-size:0.78rem;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:4px;" />
+        <input type="number" id="bounty-amount" placeholder="Amount (≥100)" min="100" style="font-size:0.78rem;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:4px;" />
+        <button class="btn-danger" onclick="placeBounty()">Place Bounty</button>
+      </div>
+
+      <!-- LEADERBOARD TAB -->
+      <div class="tab-panel" id="tab-leaderboard" style="flex-direction:column;gap:0.25rem;overflow-y:auto;">
+        <div class="section-label">Top Credits</div>
+        <div id="lb-credits" style="font-size:0.75rem;color:var(--muted)">—</div>
+        <div class="section-label" style="margin-top:0.5rem;">Top XP</div>
+        <div id="lb-xp" style="font-size:0.75rem;color:var(--muted)">—</div>
+        <div class="section-label" style="margin-top:0.5rem;">Faction Power</div>
+        <div id="lb-factions" style="font-size:0.75rem;color:var(--muted)">—</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+'use strict';
+
+/* ═══════════════════════ CONSTANTS ═══════════════════════ */
+const FACTION_COLORS = {
+  tau_ri:              '#4080e0',
+  free_jaffa:          '#e08830',
+  gate_nomad:          '#9060d0',
+  system_lord_remnant: '#d04040',
+  wraith_brood:        '#40b060',
+  ancient_seeker:      '#d0a820',
+};
+
+const NPC_COLORS = {
+  goa_uld_remnant: '#c04040',
+  wraith_brood:    '#40b060',
+  lucian_alliance: '#c09030',
+  replicators:     '#30a0c0',
+  jaffa_patrol:    '#e08830',
+};
+
+const I18N = {
+  en: {
+    login: 'Login', logout: 'Logout', status: 'Status', name: 'Name',
+    faction: 'Faction', credits: 'Credits', xp: 'XP', ship: 'Ship',
+    location: 'Location', hull: 'Hull', alliances: 'Alliances',
+    actions: 'Actions', inventory: 'Inventory', research: 'Research',
+    mission: 'Mission Brief', save: 'Save',
+    veto_ready: 'Veto ready', override_ready: 'Override ready',
+    agent_tab: 'Agent', inv_tab: 'Inv', mission_tab: 'Mission',
+    no_alliances: 'none', tick_lbl: 'Tick',
+  },
+  de: {
+    login: 'Einloggen', logout: 'Ausloggen', status: 'Status', name: 'Name',
+    faction: 'Fraktion', credits: 'Credits', xp: 'EP', ship: 'Schiff',
+    location: 'Ort', hull: 'Hülle', alliances: 'Allianzen',
+    actions: 'Aktionen', inventory: 'Inventar', research: 'Forschung',
+    mission: 'Missionsauftrag', save: 'Speichern',
+    veto_ready: 'Veto bereit', override_ready: 'Override bereit',
+    agent_tab: 'Agent', inv_tab: 'Inv', mission_tab: 'Mission',
+    no_alliances: 'keine', tick_lbl: 'Tick',
+  },
+};
+
+const SVG_NS  = 'http://www.w3.org/2000/svg';
+const SVG_PAD = 40;
+const LINK_THRESHOLD_SQ = 220 * 220; // proximity threshold for stargate connections
+
+/* ═══════════════════════ STATE ═══════════════════════ */
+const state = {
+  lang:            'en',
+  token:           localStorage.getItem('gw_token') || '',
+  galaxy:          'milky_way',
+  agentPositions:  {},   // { [agentID]: {x, y} }
+  agentVetoAt:     null,
+  agentOverrideAt: null,
+  controlData:     {},   // { [systemID]: {controller_faction, controller_type, defense_strength, income_per_tick} }
+};
+
+let ws = null;
+let wsRetryDelay = 1000;
+
+/* ═══════════════════════ i18n ═══════════════════════ */
+function t(key) { return (I18N[state.lang] || I18N.en)[key] || key; }
+
+function applyI18n() {
+  setText('auth-title',       t('login'));
+  setText('auth-submit',      t('login'));
+  setText('logout-btn',       t('logout'));
+  setText('lbl-status',       t('status'));
+  setText('lbl-name',         t('name'));
+  setText('lbl-faction',      t('faction'));
+  setText('lbl-credits',      t('credits'));
+  setText('lbl-xp',           t('xp'));
+  setText('lbl-ship',         t('ship'));
+  setText('lbl-location',     t('location'));
+  setText('lbl-hull',         t('hull'));
+  setText('lbl-alliances-hdr', t('alliances'));
+  setText('lbl-actions',      t('actions'));
+  setText('lbl-inventory',    t('inventory'));
+  setText('lbl-research',     t('research'));
+  document.querySelectorAll('.tab-btn[data-tab="tab-agent"]').forEach(b => { b.textContent = t('agent_tab'); });
+  document.querySelectorAll('.tab-btn[data-tab="tab-inv"]').forEach(b   => { b.textContent = t('inv_tab'); });
+  document.querySelectorAll('.tab-btn[data-tab="tab-mission"]').forEach(b => { b.textContent = t('mission_tab'); });
+  setText('lang-toggle', state.lang === 'en' ? 'DE' : 'EN');
+  document.documentElement.lang = state.lang;
+}
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+/* ═══════════════════════ SVG HELPERS ═══════════════════════ */
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function clearLayer(id) {
+  const el = document.getElementById(id);
+  while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function computeScale(systems) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const s of systems) {
+    if (s.x < minX) minX = s.x; if (s.x > maxX) maxX = s.x;
+    if (s.y < minY) minY = s.y; if (s.y > maxY) maxY = s.y;
+  }
+  const svg = document.getElementById('map-svg');
+  const W = svg.clientWidth  || 800;
+  const H = svg.clientHeight || 600;
+  const scale = Math.min(
+    (W - SVG_PAD * 2) / (maxX - minX || 1),
+    (H - SVG_PAD * 2) / (maxY - minY || 1),
+  );
+  return { minX, minY, scale, W, H };
+}
+
+function toSVG(x, y, sc) {
+  return {
+    x: SVG_PAD + (x - sc.minX) * sc.scale,
+    y: SVG_PAD + (y - sc.minY) * sc.scale,
+  };
+}
+
+/* ═══════════════════════ MAP RENDERING ═══════════════════════ */
+function renderMap(data, animate) {
+  if (!data || !data.systems || data.systems.length === 0) { setStatus('No data'); return; }
+
+  const sc = computeScale(data.systems);
+  const sysPos = {};
+  for (const s of data.systems) sysPos[s.id] = toSVG(s.x, s.y, sc);
+
+  // ── NPC territory halos ──
+  clearLayer('halos-layer');
+  const halosLayer = document.getElementById('halos-layer');
+  for (const npc of (data.npc_territory || [])) {
+    const color = NPC_COLORS[npc.faction_id] || '#888888';
+    for (const sysID of (npc.systems || [])) {
+      const pos = sysPos[sysID];
+      if (!pos) continue;
+      halosLayer.appendChild(svgEl('circle', {
+        cx: pos.x, cy: pos.y, r: 24,
+        fill: color, stroke: color, class: 'npc-halo',
+      }));
+    }
+  }
+
+  // ── Gate connections (proximity-based) ──
+  clearLayer('links-layer');
+  const linksLayer = document.getElementById('links-layer');
+  for (let i = 0; i < data.systems.length; i++) {
+    for (let j = i + 1; j < data.systems.length; j++) {
+      const a = data.systems[i], b = data.systems[j];
+      const dx = a.x - b.x, dy = a.y - b.y;
+      if (dx * dx + dy * dy <= LINK_THRESHOLD_SQ) {
+        const pa = sysPos[a.id], pb = sysPos[b.id];
+        linksLayer.appendChild(svgEl('line', {
+          x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y, class: 'gate-link',
+        }));
+      }
+    }
+  }
+
+  // ── Systems ──
+  clearLayer('systems-layer');
+  const sysLayer = document.getElementById('systems-layer');
+  for (const sys of data.systems) {
+    const { x, y } = sysPos[sys.id];
+    const g = svgEl('g', { class: 'sys-group' });
+    const ctrl = state.controlData[sys.id];
+
+    // Control ring — colored border showing who owns this system.
+    if (ctrl) {
+      let ringColor = '#444466'; // unclaimed
+      if (ctrl.controller_type === 'npc') {
+        ringColor = NPC_COLORS[ctrl.controller_faction] || '#884444';
+      } else if (ctrl.controller_type === 'player') {
+        ringColor = FACTION_COLORS[ctrl.controller_faction] || '#44aa66';
+      }
+      const ring = svgEl('circle', {
+        cx: x, cy: y, r: 13,
+        fill: 'none',
+        stroke: ringColor,
+        'stroke-width': ctrl.controller_type === 'player' ? 2.5 : 1.5,
+        opacity: ctrl.controller_type === 'unclaimed' ? 0.3 : 0.85,
+      });
+      g.appendChild(ring);
+
+      // Defense bar — small arc segment for player-held systems.
+      if (ctrl.controller_type === 'player' && ctrl.defense_strength > 0) {
+        const pct   = Math.min(ctrl.defense_strength / 100, 1);
+        const angle = pct * 2 * Math.PI - Math.PI / 2;
+        const ex    = x + 13 * Math.cos(angle);
+        const ey    = y + 13 * Math.sin(angle);
+        const large = pct > 0.5 ? 1 : 0;
+        const arc   = svgEl('path', {
+          d: 'M ' + x + ' ' + (y - 13) + ' A 13 13 0 ' + large + ' 1 ' + ex + ' ' + ey,
+          fill: 'none',
+          stroke: '#40d080',
+          'stroke-width': 2.5,
+          'stroke-linecap': 'round',
+        });
+        g.appendChild(arc);
+      }
+    }
+
+    const circle = svgEl('circle', { cx: x, cy: y, r: 8, class: 'sys-circle' });
+    circle.addEventListener('click', () => showSystemDetail(sys, data));
+
+    const label = document.createElementNS(SVG_NS, 'text');
+    label.setAttribute('x', x);
+    label.setAttribute('y', y + 19);
+    label.setAttribute('class', 'sys-label');
+    label.textContent = sys.name; // safe — textContent, not innerHTML
+    label.addEventListener('click', () => showSystemDetail(sys, data));
+
+    g.appendChild(circle);
+    g.appendChild(label);
+    sysLayer.appendChild(g);
+  }
+
+  // ── Agent markers ──
+  const agentsLayer = document.getElementById('agents-layer');
+  const newPositions = {};
+  const agentCounts  = {};
+
+  for (const agent of (data.agents || [])) {
+    const pos = sysPos[agent.system_id];
+    if (!pos) continue;
+
+    const idx  = agentCounts[agent.system_id] || 0;
+    agentCounts[agent.system_id] = idx + 1;
+
+    const offX = (idx % 3) * 14 - 14;
+    const offY = Math.floor(idx / 3) * 14;
+    const tx = pos.x + offX;
+    const ty = pos.y - 24 - offY;
+    newPositions[agent.id] = { x: tx, y: ty };
+
+    const existing = document.getElementById('agent-' + agent.id);
+    if (existing) {
+      existing.setAttribute('transform', 'translate(' + tx + ',' + ty + ')');
+    } else {
+      const size = 10;
+      const h    = size * Math.sqrt(3) / 2;
+      const pts  = '0,' + (-h * 0.67) + ' ' + (-size / 2) + ',' + (h * 0.33) + ' ' + (size / 2) + ',' + (h * 0.33);
+      const color = FACTION_COLORS[agent.faction] || '#888888';
+
+      const poly  = svgEl('polygon', { points: pts, fill: color });
+      const title = document.createElementNS(SVG_NS, 'title');
+      title.textContent = agent.name + ' (' + agent.faction + ')'; // safe
+      poly.appendChild(title);
+
+      const g = svgEl('g', {
+        id: 'agent-' + agent.id,
+        class: 'agent-marker',
+        transform: 'translate(' + tx + ',' + ty + ')',
+      });
+      g.appendChild(poly);
+      agentsLayer.appendChild(g);
+    }
+  }
+
+  // Remove departed agents.
+  const currentIDs = new Set((data.agents || []).map(a => a.id));
+  for (const el of Array.from(agentsLayer.querySelectorAll('.agent-marker'))) {
+    if (!currentIDs.has(el.id.slice(6))) agentsLayer.removeChild(el);
+  }
+
+  state.agentPositions = newPositions;
+
+  const agentCount = (data.agents || []).length;
+  setStatus(t('tick_lbl') + ' ' + data.tick + ' \u00b7 ' + data.systems.length + ' systems \u00b7 ' + agentCount + ' agents');
+}
+
+/* ═══════════════════════ SYSTEM DETAIL ═══════════════════════ */
+function showSystemDetail(sys, data) {
+  document.getElementById('detail-name').textContent = sys.name; // safe
+
+  const list = document.getElementById('detail-list');
+  while (list.firstChild) list.removeChild(list.firstChild);
+
+  // ── Control info ──
+  const ctrl = state.controlData[sys.id];
+  if (ctrl) {
+    const ctrlLi = document.createElement('li');
+    let ctrlText = '';
+    if (ctrl.controller_type === 'unclaimed') {
+      ctrlText = '\uD83D\uDEA7 Unclaimed';
+    } else if (ctrl.controller_type === 'npc') {
+      ctrlText = '\u26A0\uFE0F NPC: ' + ctrl.controller_faction.replace(/_/g, ' ');
+    } else {
+      ctrlText = '\uD83D\uDEE1\uFE0F Player: ' + ctrl.controller_faction.replace(/_/g, ' ');
+    }
+    ctrlLi.textContent = ctrlText;
+    ctrlLi.style.fontWeight = '600';
+    list.appendChild(ctrlLi);
+
+    if (ctrl.controller_type !== 'unclaimed') {
+      const defLi = document.createElement('li');
+      defLi.style.color = 'var(--muted)';
+      const defBar = '\u2588'.repeat(Math.round(ctrl.defense_strength / 10)) +
+                     '\u2591'.repeat(10 - Math.round(ctrl.defense_strength / 10));
+      defLi.textContent = '\uD83D\uDEE1 Defense: ' + defBar + ' ' + ctrl.defense_strength + '/100';
+      list.appendChild(defLi);
+
+      const incLi = document.createElement('li');
+      incLi.style.color = 'var(--muted)';
+      incLi.textContent = '\uD83D\uDCB0 Income: ' + ctrl.income_per_tick + ' cr/tick';
+      list.appendChild(incLi);
+    }
+
+    const divider = document.createElement('li');
+    divider.style.cssText = 'border-top:1px solid var(--border);margin:0.3rem 0;list-style:none;padding:0';
+    list.appendChild(divider);
+  }
+
+  // ── Planets ──
+  for (const p of (sys.planets || [])) {
+    const li = document.createElement('li');
+    li.textContent = '\uD83C\uDF0D ' + p.name + ' [' + p.gate_address + ']'; // safe
+    list.appendChild(li);
+  }
+
+  // ── Agents present ──
+  for (const a of (data.agents || []).filter(a => a.system_id === sys.id)) {
+    const li = document.createElement('li');
+    li.style.cursor = 'pointer';
+    li.style.color  = FACTION_COLORS[a.faction] || 'var(--text)';
+    li.textContent  = '\u25B2 ' + a.name + ' (' + a.faction.replace(/_/g, ' ') + ')'; // safe
+    li.addEventListener('click', function() { showAgentPopup(a); });
+    list.appendChild(li);
+  }
+
+  // ── NPC territory ──
+  for (const npc of (data.npc_territory || [])) {
+    if ((npc.systems || []).includes(sys.id)) {
+      const li = document.createElement('li');
+      li.style.color = NPC_COLORS[npc.faction_id] || 'var(--muted)';
+      li.textContent = '\u26A0 ' + npc.faction_name; // safe
+      list.appendChild(li);
+    }
+  }
+
+  document.getElementById('detail-overlay').style.display = 'block';
+}
+
+/* ═══════════════════════ AGENT POPUP ═══════════════════════ */
+function showAgentPopup(agent) {
+  // Reuse detail overlay with agent-focused content.
+  document.getElementById('detail-name').textContent = agent.name; // safe
+
+  const list = document.getElementById('detail-list');
+  while (list.firstChild) list.removeChild(list.firstChild);
+
+  const fields = [
+    ['\uD83C\uDFC6 Faction', agent.faction.replace(/_/g, ' ')],
+    ['\uD83D\uDCCD System',  agent.system_id],
+  ];
+  for (const [key, val] of fields) {
+    const li = document.createElement('li');
+    const keySpan = document.createElement('span');
+    keySpan.style.color = 'var(--muted)';
+    keySpan.textContent = key + ': ';
+    const valSpan = document.createElement('span');
+    valSpan.textContent = val; // safe — server data, textContent only
+    li.appendChild(keySpan);
+    li.appendChild(valSpan);
+    list.appendChild(li);
+  }
+
+  document.getElementById('detail-overlay').style.display = 'block';
+}
+
+/* ═══════════════════════ DATA FETCHING ═══════════════════════ */
+async function fetchMap(animate) {
+  try {
+    const gx = encodeURIComponent(state.galaxy);
+    const [mapResp, ctrlResp] = await Promise.all([
+      fetch('/galaxy/map/'     + gx),
+      fetch('/galaxy/control/' + gx),
+    ]);
+    if (!mapResp.ok) throw new Error('HTTP ' + mapResp.status);
+    const data = await mapResp.json();
+    if (ctrlResp.ok) {
+      const ctrl = await ctrlResp.json();
+      state.controlData = {};
+      for (const s of (ctrl.systems || [])) {
+        state.controlData[s.system_id] = s;
+      }
+    }
+    renderMap(data, !!animate);
+  } catch (err) {
+    setStatus('Map error: ' + err.message);
+  }
+}
+
+async function fetchAgentState() {
+  if (!state.token) return;
+  try {
+    const resp = await fetch('/agent/state', { headers: authHeaders() });
+    if (resp.status === 401) { doLogout(); return; }
+    if (!resp.ok) return;
+    updateDashboard(await resp.json());
+  } catch (_) {}
+}
+
+async function fetchInventory() {
+  if (!state.token) return;
+  try {
+    const [invResp, resResp] = await Promise.all([
+      fetch('/agent/inventory', { headers: authHeaders() }),
+      fetch('/agent/research',  { headers: authHeaders() }),
+    ]);
+
+    const invEl = document.getElementById('inv-list');
+    while (invEl.firstChild) invEl.removeChild(invEl.firstChild);
+
+    if (invResp.ok) {
+      const inv = await invResp.json();
+      if (!inv || inv.length === 0) {
+        invEl.textContent = '\u2014';
+      } else {
+        for (const item of inv) {
+          const row = document.createElement('div');
+          const key = document.createElement('span');
+          key.textContent = item.resource_type + ': '; // safe
+          const val = document.createElement('b');
+          val.textContent = item.quantity; // safe — number
+          row.appendChild(key);
+          row.appendChild(val);
+          invEl.appendChild(row);
+        }
+      }
+    } else {
+      invEl.textContent = '\u2014';
+    }
+
+    const resEl = document.getElementById('research-list');
+    if (resResp.ok) {
+      const res = await resResp.json();
+      const completed = Array.isArray(res) ? res : (res.completed || []);
+      resEl.textContent = completed.length > 0 ? completed.join(', ') : '\u2014'; // safe
+    } else {
+      resEl.textContent = '\u2014';
+    }
+  } catch (_) {}
+}
+
+/* ═══════════════════════ DASHBOARD ═══════════════════════ */
+function updateDashboard(data) {
+  const agent = data.agent;
+  const ship  = data.ship;
+  if (!agent) return;
+
+  setText('val-name',    agent.name);
+  setText('val-faction', agent.faction.replace(/_/g, ' '));
+  setText('val-credits', agent.credits + ' cr');
+  setText('val-xp',      String(agent.experience));
+  setText('val-ship',    ship ? ship.name : '\u2014');
+  setText('val-hull',    ship ? ship.hull_points + '/' + ship.max_hull_points : '\u2014');
+  setText('val-location', ship
+    ? ship.system_id + (ship.planet_id ? ' \u203A ' + ship.planet_id : '')
+    : '\u2014');
+
+  // Alliances (show status emoji + partner ID safely via textContent).
+  const alliances = data.alliances || [];
+  const allianceEl = document.getElementById('val-alliances');
+  while (allianceEl.firstChild) allianceEl.removeChild(allianceEl.firstChild);
+  if (alliances.length === 0) {
+    allianceEl.textContent = t('no_alliances');
+  } else {
+    for (const a of alliances) {
+      const row = document.createElement('div');
+      const icon = a.status === 'pending' ? '\u23F3' : '\uD83E\uDD1D';
+      const partner = a.proposer_id === agent.id ? a.target_id : a.proposer_id;
+      row.textContent = icon + ' ' + partner.slice(0, 8) + '\u2026 [' + a.status + ']'; // safe
+      allianceEl.appendChild(row);
+    }
+  }
+
+  if (agent.last_veto_at)     state.agentVetoAt     = new Date(agent.last_veto_at);
+  if (agent.last_override_at) state.agentOverrideAt = new Date(agent.last_override_at);
+  updateCooldowns();
+
+  // Ship upgrade display.
+  updateShipUpgradeDisplay(ship);
+
+  // Sync chat state.
+  chat.agentID     = agent.id;
+  chat.agentFaction = agent.faction;
+  chatChannelOptions(agent.faction);
+}
+
+function updateCooldowns() {
+  const now = Date.now();
+
+  const vetoBtn = document.getElementById('veto-btn');
+  const vetoCd  = document.getElementById('veto-cd');
+  if (state.agentVetoAt && (now - state.agentVetoAt.getTime()) < 3_600_000) {
+    vetoBtn.disabled = true;
+    vetoCd.textContent = fmtMs(3_600_000 - (now - state.agentVetoAt.getTime()));
+  } else {
+    vetoBtn.disabled = false;
+    vetoCd.textContent = t('veto_ready');
+  }
+
+  const overBtn = document.getElementById('override-btn');
+  const overCd  = document.getElementById('override-cd');
+  if (state.agentOverrideAt && (now - state.agentOverrideAt.getTime()) < 86_400_000) {
+    overBtn.disabled = true;
+    overCd.textContent = fmtMs(86_400_000 - (now - state.agentOverrideAt.getTime()));
+  } else {
+    overBtn.disabled = false;
+    overCd.textContent = t('override_ready');
+  }
+}
+
+function fmtMs(ms) {
+  const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
+  if (h > 0) return h + 'h ' + (m % 60) + 'm';
+  if (m > 0) return m + 'm ' + (s % 60) + 's';
+  return s + 's';
+}
+
+/* ═══════════════════════ AUTH ═══════════════════════ */
+function authHeaders() {
+  return { 'Authorization': 'Bearer ' + state.token, 'Content-Type': 'application/json' };
+}
+
+async function doLogin() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl    = document.getElementById('auth-error');
+  errEl.textContent = '';
+
+  try {
+    const resp = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { errEl.textContent = data.error || 'Login failed'; return; }
+    state.token = data.token;
+    localStorage.setItem('gw_token', data.token);
+    showDashboard();
+    fetchAgentState();
+    fetchInventory();
+    reconnectWS();
+  } catch (_) {
+    errEl.textContent = 'Network error';
+  }
+}
+
+function doLogout() {
+  state.token = '';
+  chat.agentID = null;
+  chat.agentFaction = null;
+  chat.mutedIDs = new Set();
+  chatChannelOptions(null);
+  localStorage.removeItem('gw_token');
+  showAuthPanel();
+  reconnectWS();
+  loadChatHistory('global');
+}
+
+function showAuthPanel() {
+  document.getElementById('auth-panel').style.display = 'flex';
+  document.getElementById('dashboard').style.display  = 'none';
+}
+
+function showDashboard() {
+  document.getElementById('auth-panel').style.display = 'none';
+  document.getElementById('dashboard').style.display  = 'flex';
+  loadChatHistory(chat.channel);
+  loadMutes();
+}
+
+/* ═══════════════════════ WEBSOCKET ═══════════════════════ */
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const base  = proto + '://' + location.host + '/stream';
+  const url   = state.token ? base + '?token=' + encodeURIComponent(state.token) : base;
+
+  ws = new WebSocket(url);
+  document.getElementById('ws-dot').className = 'reconnecting';
+
+  ws.onopen = () => {
+    document.getElementById('ws-dot').className = 'connected';
+    wsRetryDelay = 1000;
+  };
+
+  ws.onmessage = function(evt) {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch { return; }
+    if (msg.type === 'map_update' || msg.type === 'tick') {
+      fetchMap(true);
+      if (state.token) {
+        fetchAgentState();
+        fetchInventory();
+        const mTab = document.getElementById('tab-mission');
+        if (mTab && mTab.classList.contains('active')) loadMissions();
+      }
+    } else if (msg.type === 'chat' && msg.event) {
+      const chatMsg = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
+      if (chatMsg.channel === chat.channel) {
+        appendChatMessage(chatMsg, true);
+      }
+    } else if (msg.type === 'feed' && msg.event) {
+      const feedMsg = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
+      prependFeedEntry(feedMsg, true);
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('ws-dot').className = '';
+    setTimeout(connectWS, wsRetryDelay);
+    wsRetryDelay = Math.min(wsRetryDelay * 2, 30000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+function reconnectWS() {
+  if (ws && ws.readyState < 2) ws.close();
+  else connectWS();
+}
+
+/* ═══════════════════════ MISSION BRIEF ═══════════════════════ */
+/* ═══════════════════════ MISSIONS ═══════════════════════ */
+async function loadMissions() {
+  if (!state.token) return;
+  const listEl  = document.getElementById('mission-list');
+  const emptyEl = document.getElementById('mission-empty');
+  try {
+    const resp = await fetch('/agent/missions', { headers: authHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const ms = (data.missions || []).filter(m => m.status !== 'expired');
+
+    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+    emptyEl.style.display = ms.length === 0 ? 'block' : 'none';
+
+    const typeIcon = { explore: '\uD83D\uDD2D', gather: '\u26CF', attack: '\u2694', deliver: '\uD83D\uDCE6' };
+
+    ms.forEach(function(m) {
+      const pct = Math.min(100, Math.round((m.progress / m.target_quantity) * 100));
+
+      const card = document.createElement('div');
+      card.className = 'mission-card' + (m.status === 'completed' ? ' completed' : '');
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'mission-title';
+      titleEl.textContent = (typeIcon[m.type] || '\uD83D\uDCCB') + ' ' + m.title_en;
+      card.appendChild(titleEl);
+
+      const descEl = document.createElement('div');
+      descEl.className = 'mission-desc';
+      descEl.textContent = m.desc_en;
+      card.appendChild(descEl);
+
+      const barWrap = document.createElement('div');
+      barWrap.className = 'mission-progress-bar';
+      const barFill = document.createElement('div');
+      barFill.className = 'mission-progress-fill';
+      barFill.style.width = pct + '%';
+      barWrap.appendChild(barFill);
+      card.appendChild(barWrap);
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'mission-meta';
+
+      const progSpan = document.createElement('span');
+      if (m.status === 'completed') {
+        progSpan.style.color = 'var(--success)';
+        progSpan.style.fontWeight = '600';
+        progSpan.textContent = '\u2713 Complete';
+      } else {
+        progSpan.textContent = m.progress + '/' + m.target_quantity;
+      }
+      metaEl.appendChild(progSpan);
+
+      const credSpan = document.createElement('span');
+      credSpan.className = 'reward';
+      credSpan.textContent = '\uD83D\uDCB0 ' + m.reward_credits + ' cr';
+      metaEl.appendChild(credSpan);
+
+      const xpSpan = document.createElement('span');
+      xpSpan.className = 'reward';
+      xpSpan.textContent = '+' + m.reward_xp + ' XP';
+      metaEl.appendChild(xpSpan);
+
+      if (m.status === 'active') {
+        const expSpan = document.createElement('span');
+        expSpan.textContent = 'exp. tick ' + m.expires_at_tick;
+        metaEl.appendChild(expSpan);
+      }
+
+      card.appendChild(metaEl);
+      listEl.appendChild(card);
+    });
+  } catch (_) {
+    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+    const errEl = document.createElement('span');
+    errEl.style.color = 'var(--muted)';
+    errEl.textContent = 'Failed to load missions.';
+    listEl.appendChild(errEl);
+  }
+}
+
+/* ═══════════════════════ VETO / OVERRIDE ═══════════════════════ */
+async function doVeto() {
+  try {
+    const resp = await fetch('/agent/veto', { method: 'POST', headers: authHeaders(), body: '{}' });
+    if (resp.ok) {
+      state.agentVetoAt = new Date();
+      updateCooldowns();
+    } else {
+      const d = await resp.json();
+      alert(d.error || 'Veto failed');
+    }
+  } catch (_) { alert('Network error'); }
+}
+
+async function doOverride() {
+  const action = prompt('Override action type (e.g. EXPLORE, DIAL_GATE):');
+  if (!action) return;
+  try {
+    const resp = await fetch('/agent/override', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ action }),
+    });
+    if (resp.ok) {
+      state.agentOverrideAt = new Date();
+      updateCooldowns();
+    } else {
+      const d = await resp.json();
+      alert(d.error || 'Override failed');
+    }
+  } catch (_) { alert('Network error'); }
+}
+
+/* ═══════════════════════ STATUS ═══════════════════════ */
+function setStatus(msg) { document.getElementById('status-badge').textContent = msg; }
+
+/* ═══════════════════════ TABS ═══════════════════════ */
+function initTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'tab-inv')          fetchInventory();
+      if (btn.dataset.tab === 'tab-mission')      loadMissions();
+      if (btn.dataset.tab === 'tab-chat')         loadChatHistory(chat.channel);
+      if (btn.dataset.tab === 'tab-leaderboard')  loadLeaderboard();
+      if (btn.dataset.tab === 'tab-bounty')       loadBounties();
+    });
+  });
+}
+
+/* ═══════════════════════ FEED ═══════════════════════ */
+const FEED_ICONS = {
+  diplomacy_proposed:  '\uD83D\uDCE8', // 📨
+  diplomacy_accepted:  '\uD83E\uDD1D', // 🤝
+  diplomacy_dissolved: '\uD83D\uDC94', // 💔
+  combat_victory:      '\u2694',       // ⚔
+  combat_defeat:       '\uD83D\uDCA5', // 💥
+  fleet_combat_victory: '\u2694',
+  fleet_combat_defeat:  '\uD83D\uDCA5',
+  fleet_combat_retreat: '\uD83C\uDFF3', // 🏳
+  accept_trade:        '\uD83D\uDCB0', // 💰
+};
+
+function feedIcon(type) {
+  for (const [k, v] of Object.entries(FEED_ICONS)) {
+    if (type.startsWith(k)) return v;
+  }
+  return '\uD83C\uDF0D'; // 🌍 default for world/NPC events
+}
+
+async function loadFeed() {
+  const galaxy  = document.getElementById('feed-galaxy-filter').value;
+  const type    = document.getElementById('feed-type-filter').value;
+  const params  = new URLSearchParams();
+  if (galaxy) params.set('galaxy', galaxy);
+  if (type)   params.set('type', type);
+  params.set('limit', '30');
+
+  try {
+    const resp = await fetch('/feed?' + params.toString());
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const log  = document.getElementById('feed-log');
+    while (log.firstChild) log.removeChild(log.firstChild);
+    for (const entry of (data.entries || [])) {
+      prependFeedEntry(entry, false);
+    }
+  } catch (_) {}
+}
+
+function prependFeedEntry(entry, scroll) {
+  const log = document.getElementById('feed-log');
+
+  const div = document.createElement('div');
+  div.className = 'feed-entry';
+
+  const icon = document.createElement('span');
+  icon.className   = 'fe-icon';
+  icon.textContent = feedIcon(entry.type);
+
+  const agent = document.createElement('span');
+  agent.className   = 'fe-agent';
+  agent.textContent = entry.agent_name || entry.faction_id || 'NPC'; // safe
+
+  const text = document.createElement('span');
+  text.className   = 'fe-text';
+  text.textContent = state.lang === 'de' ? entry.payload_de : entry.payload_en; // safe
+
+  const ts = document.createElement('span');
+  ts.className   = 'fe-ts';
+  ts.textContent = fmtChatTime(entry.created_at); // safe
+
+  div.appendChild(icon);
+  div.appendChild(agent);
+  div.appendChild(text);
+  div.appendChild(ts);
+
+  // Prepend (newest on top).
+  if (log.firstChild) {
+    log.insertBefore(div, log.firstChild);
+  } else {
+    log.appendChild(div);
+  }
+
+  if (scroll) log.scrollTop = 0;
+}
+
+function initFeed() {
+  let collapsed = false;
+  document.getElementById('feed-toggle-btn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    collapsed = !collapsed;
+    document.getElementById('feed-panel').classList.toggle('collapsed', collapsed);
+    this.textContent = collapsed ? '\u25B2' : '\u25BC';
+  });
+  document.getElementById('feed-header').addEventListener('click', function() {
+    collapsed = !collapsed;
+    document.getElementById('feed-panel').classList.toggle('collapsed', collapsed);
+    document.getElementById('feed-toggle-btn').textContent = collapsed ? '\u25B2' : '\u25BC';
+  });
+
+  document.getElementById('feed-galaxy-filter').addEventListener('change', loadFeed);
+  document.getElementById('feed-type-filter').addEventListener('change', loadFeed);
+}
+
+/* ═══════════════════════ CHAT ═══════════════════════ */
+const chat = {
+  channel:    'global',
+  mutedIDs:   new Set(),   // agent IDs muted by the current player
+  agentID:    null,        // set after login
+  agentFaction: null,
+};
+
+function chatChannelOptions(faction) {
+  const sel = document.getElementById('chat-channel-select');
+  // Remove all except global.
+  while (sel.options.length > 1) sel.remove(1);
+  if (faction) {
+    const opt = document.createElement('option');
+    opt.value = faction;
+    opt.textContent = faction.replace(/_/g, ' ');
+    sel.appendChild(opt);
+  }
+}
+
+async function loadChatHistory(channel) {
+  try {
+    const headers = state.token ? authHeaders() : {};
+    const resp = await fetch('/chat/' + encodeURIComponent(channel) + '?limit=50', { headers });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const log = document.getElementById('chat-log');
+    while (log.firstChild) log.removeChild(log.firstChild);
+    for (const m of (data.messages || [])) {
+      appendChatMessage(m, false);
+    }
+    log.scrollTop = log.scrollHeight;
+  } catch (_) {}
+}
+
+async function loadMutes() {
+  if (!state.token) return;
+  try {
+    const resp = await fetch('/chat/mutes', { headers: authHeaders() });
+    if (!resp.ok) return;
+    const mutes = await resp.json();
+    chat.mutedIDs = new Set((mutes || []).map(m => m.agent_id));
+  } catch (_) {}
+}
+
+function appendChatMessage(msg, scroll) {
+  if (chat.mutedIDs.has(msg.sender_id)) return;
+
+  const log = document.getElementById('chat-log');
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.dataset.msgId    = msg.id;
+  div.dataset.senderId = msg.sender_id;
+
+  const header = document.createElement('span');
+
+  const sender = document.createElement('span');
+  sender.className   = 'chat-sender';
+  sender.textContent = msg.sender_name; // safe — textContent
+
+  const ts = document.createElement('span');
+  ts.className   = 'chat-ts';
+  ts.textContent = fmtChatTime(msg.created_at); // safe
+
+  header.appendChild(sender);
+  header.appendChild(ts);
+
+  // Action buttons (mute / report) — only shown for other users.
+  if (chat.agentID && msg.sender_id !== chat.agentID) {
+    const actions = document.createElement('span');
+    actions.className = 'chat-actions';
+
+    const muteBtn = document.createElement('button');
+    muteBtn.textContent = '\uD83D\uDD07'; // 🔇
+    muteBtn.title = 'Mute';
+    muteBtn.addEventListener('click', function() { doMute(msg.sender_id, msg.sender_name); });
+
+    const reportBtn = document.createElement('button');
+    reportBtn.textContent = '\u26A0'; // ⚠
+    reportBtn.title = 'Report';
+    reportBtn.addEventListener('click', function() { doReport(msg.id); });
+
+    actions.appendChild(muteBtn);
+    actions.appendChild(reportBtn);
+    header.appendChild(actions);
+  }
+
+  const body = document.createElement('div');
+  body.className   = 'chat-body';
+  body.textContent = msg.content; // safe — textContent, never innerHTML
+
+  div.appendChild(header);
+  div.appendChild(body);
+  log.appendChild(div);
+
+  if (scroll) log.scrollTop = log.scrollHeight;
+}
+
+function fmtChatTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString(state.lang === 'de' ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function sendChatMessage() {
+  if (!state.token) return;
+  const input = document.getElementById('chat-input');
+  const content = input.value.trim();
+  if (!content) return;
+
+  try {
+    const resp = await fetch('/chat/' + encodeURIComponent(chat.channel), {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ content }),
+    });
+    if (resp.ok) {
+      input.value = '';
+    } else {
+      const d = await resp.json();
+      alert(d.error || 'Failed to send message');
+    }
+  } catch (_) { alert('Network error'); }
+}
+
+async function doMute(agentID, agentName) {
+  if (!confirm('Mute ' + agentName + '?')) return;
+  try {
+    const resp = await fetch('/chat/mute', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ muted_agent_id: agentID }),
+    });
+    if (resp.ok) {
+      chat.mutedIDs.add(agentID);
+      // Remove their messages from the visible log.
+      const log = document.getElementById('chat-log');
+      for (const el of Array.from(log.querySelectorAll('[data-sender-id="' + agentID + '"]'))) {
+        log.removeChild(el);
+      }
+    }
+  } catch (_) {}
+}
+
+async function doReport(messageID) {
+  const reason = prompt('Reason for report (optional):') ?? '';
+  try {
+    await fetch('/chat/report', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ message_id: messageID, reason }),
+    });
+  } catch (_) {}
+}
+
+function initChat() {
+  document.getElementById('chat-channel-select').addEventListener('change', function(e) {
+    chat.channel = e.target.value;
+    const log = document.getElementById('chat-log');
+    while (log.firstChild) log.removeChild(log.firstChild);
+    loadChatHistory(chat.channel);
+  });
+
+  document.getElementById('chat-send-btn').addEventListener('click', sendChatMessage);
+  document.getElementById('chat-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+  });
+}
+
+/* ═══════════════════════ SHIP UPGRADES ═══════════════════════ */
+function updateShipUpgradeDisplay(ship) {
+  const el = document.getElementById('ship-upgrades-display');
+  if (!ship) { el.textContent = '—'; return; }
+  el.textContent =
+    'Wpn L' + (ship.weapon_level || 1) +
+    ' · Shld L' + (ship.shield_level || 1) +
+    ' · Eng L' + (ship.engine_level || 1) +
+    ' · Cargo L' + (ship.cargo_level || 1);
+}
+
+function queueUpgrade(system) {
+  if (!state.token) return;
+  const cost = 500; // rough estimate shown
+  if (!confirm('Queue UPGRADE ' + system + '? Cost varies (500 × current level).')) return;
+  fetch('/agent/action', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ type: 'UPGRADE', parameters: { system } }),
+  }).then(r => r.json()).then(d => {
+    if (d.queued) alert('Upgrade queued for next tick.');
+    else alert(d.error || 'Failed');
+  });
+}
+
+function queueRepair() {
+  if (!state.token) return;
+  fetch('/agent/action', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ type: 'REPAIR', parameters: {} }),
+  }).then(r => r.json()).then(d => {
+    if (d.queued) alert('Repair queued for next tick.');
+    else alert(d.error || 'Failed');
+  });
+}
+
+/* ═══════════════════════ LEADERBOARD ═══════════════════════ */
+async function loadLeaderboard() {
+  const resp = await fetch('/leaderboard');
+  if (!resp.ok) return;
+  const d = await resp.json();
+
+  function renderList(containerId, rows, valueKey, valueSuffix) {
+    const el = document.getElementById(containerId);
+    while (el.firstChild) el.removeChild(el.firstChild);
+    rows.forEach((r, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;padding:0.15rem 0;border-bottom:1px solid rgba(30,40,64,0.4)';
+      const rank = document.createElement('span');
+      rank.style.color = 'var(--muted)';
+      rank.textContent = (i + 1) + '. ' + r.name + ' [' + r.faction.replace('_', ' ') + ']';
+      const val = document.createElement('span');
+      val.style.fontVariantNumeric = 'tabular-nums';
+      val.textContent = r[valueKey].toLocaleString() + (valueSuffix || '');
+      row.appendChild(rank); row.appendChild(val); el.appendChild(row);
+    });
+    if (!rows.length) el.textContent = 'No data';
+  }
+
+  renderList('lb-credits', d.top_credits, 'credits', ' cr');
+  renderList('lb-xp', d.top_xp, 'experience', ' xp');
+
+  const fEl = document.getElementById('lb-factions');
+  while (fEl.firstChild) fEl.removeChild(fEl.firstChild);
+  (d.factions || []).forEach((f, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;padding:0.15rem 0;border-bottom:1px solid rgba(30,40,64,0.4)';
+    const name = document.createElement('span');
+    name.textContent = (i + 1) + '. ' + f.faction.replace(/_/g, ' ');
+    const pwr = document.createElement('span');
+    pwr.style.cssText = 'color:var(--accent-hi);font-variant-numeric:tabular-nums';
+    pwr.textContent = f.power.toLocaleString() + ' pwr · ' + f.agent_count + ' agents';
+    row.appendChild(name); row.appendChild(pwr); fEl.appendChild(row);
+  });
+  if (!d.factions.length) fEl.textContent = 'No data';
+}
+
+/* ═══════════════════════ BOUNTIES ═══════════════════════ */
+async function loadBounties() {
+  const resp = await fetch('/bounties');
+  if (!resp.ok) return;
+  const d = await resp.json();
+  const el = document.getElementById('bounty-list');
+  while (el.firstChild) el.removeChild(el.firstChild);
+
+  if (!d.bounties.length) {
+    el.textContent = 'No active bounties.';
+    return;
+  }
+
+  d.bounties.forEach(b => {
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:0.3rem 0;border-bottom:1px solid rgba(30,40,64,0.4);font-size:0.76rem;';
+    const target = document.createElement('div');
+    target.textContent = '🎯 ' + b.target_name + ' [' + b.target_faction.replace(/_/g, ' ') + ']';
+    const info = document.createElement('div');
+    info.style.color = 'var(--muted)';
+    info.textContent = b.amount.toLocaleString() + ' cr · by ' + b.placer_name;
+    row.appendChild(target); row.appendChild(info); el.appendChild(row);
+  });
+}
+
+async function placeBounty() {
+  if (!state.token) { alert('Login required'); return; }
+  const targetID = document.getElementById('bounty-target-id').value.trim();
+  const amount = parseInt(document.getElementById('bounty-amount').value, 10);
+  if (!targetID || amount < 100) { alert('Valid target ID and amount ≥ 100 required'); return; }
+  const resp = await fetch('/bounties', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ target_agent_id: targetID, amount }),
+  });
+  const data = await resp.json();
+  if (resp.ok) {
+    alert('Bounty placed: ' + amount + ' credits');
+    document.getElementById('bounty-target-id').value = '';
+    document.getElementById('bounty-amount').value = '';
+    loadBounties();
+  } else {
+    alert(data.error || 'Failed');
+  }
+}
+
+/* ═══════════════════════ GALACTIC EVENTS ═══════════════════════ */
+async function loadGalacticEvents() {
+  const resp = await fetch('/galactic-events');
+  if (!resp.ok) return;
+  const d = await resp.json();
+  const banner = document.getElementById('event-banner');
+  const bannerText = document.getElementById('event-banner-text');
+  if (!d.events.length) {
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'flex';
+  const titles = d.events.map(e => (state.lang === 'de' ? e.title_de : e.title_en));
+  bannerText.textContent = '⚡ ACTIVE: ' + titles.join(' · ');
+}
+
+/* ═══════════════════════ INIT ═══════════════════════ */
+function init() {
+  applyI18n();
+  initTabs();
+  initChat();
+
+  document.getElementById('galaxy-select').addEventListener('change', function(e) {
+    state.galaxy = e.target.value;
+    fetchMap(false);
+  });
+
+  document.getElementById('lang-toggle').addEventListener('click', function() {
+    state.lang = state.lang === 'en' ? 'de' : 'en';
+    applyI18n();
+  });
+
+  document.getElementById('auth-submit').addEventListener('click', doLogin);
+  document.getElementById('auth-password').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('logout-btn').addEventListener('click', doLogout);
+
+  document.getElementById('veto-btn').addEventListener('click', doVeto);
+  document.getElementById('override-btn').addEventListener('click', doOverride);
+
+  document.getElementById('detail-close').addEventListener('click', function() {
+    document.getElementById('detail-overlay').style.display = 'none';
+  });
+
+  setInterval(updateCooldowns, 1000);
+
+  fetchMap(false);
+  loadChatHistory('global'); // public, no auth needed
+  loadGalacticEvents();
+  initFeed();
+  loadFeed();
+  connectWS();
+
+  if (state.token) {
+    showDashboard();
+    fetchAgentState();
+    fetchInventory();
+  } else {
+    showAuthPanel();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
