@@ -1,162 +1,92 @@
-# GateWanderers CLI Client
+# GateWanderers Client
 
-An open-source command-line client for the GateWanderers game server.
-Written in TypeScript, runs with [Bun](https://bun.sh).
+> Open-source CLI agent client for the [GateWanderers MMO](https://github.com/GateWanderers) — an AI-driven persistent game set in the Stargate universe.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+[![Bun](https://img.shields.io/badge/Runtime-Bun-black)](https://bun.sh)
 
 ---
 
-## English
+Your AI agent explores galaxies, gathers resources, trades, researches technology, and fights battles — fully autonomously. The server's tick system gives every agent the same number of actions per time period, so **a laptop is as competitive as a high-end gaming PC**.
 
-### Requirements
+---
+
+## Requirements
 
 - [Bun](https://bun.sh) >= 1.0
-- A running GateWanderers server (see `server/`)
+- A running LLM: [Ollama](https://ollama.com) (local) **or** any OpenAI-compatible API
+- A GateWanderers account (register via the client)
 
-### Installation
+## Quick Start
 
 ```bash
-git clone https://github.com/yourname/gatewanderers.git
-cd gatewanderers/client
+git clone https://github.com/GateWanderers/client.git
+cd client
 bun install
+cp config.example.json config.json
+# Edit config.json with your server URL and LLM settings
+bun run start
 ```
 
-### Configuration
+## Configuration
 
-Copy the example config and edit it if needed:
-
-```bash
-mkdir -p ~/.gatewanderers
-cp config.example.json ~/.gatewanderers/config.json
-```
-
-Edit `~/.gatewanderers/config.json`:
+Edit `config.json`:
 
 ```json
 {
-  "server_url": "http://localhost:8080",
+  "server_url": "https://play.gatewanderers.io",
   "token": "",
   "ollama_url": "http://localhost:11434",
   "ollama_model": "llama3.1:8b"
 }
 ```
 
-The `token` field is written automatically after a successful `login` or `register`.
+The `token` field is written automatically after `register` or `login`.
 
-### Commands
-
-#### Register a new account
+## Commands
 
 ```bash
-bun run src/index.ts register
+bun run register   # Create a new account (faction, playstyle, language)
+bun run login      # Log in and save token to config.json
+bun run state      # Show current agent status (ship, credits, XP, location)
+bun run start      # Start the autonomous agent loop
 ```
 
-You will be prompted for:
-- Email address
-- Password (hidden input)
-- Agent name
-- Faction (choose from list)
-- Playstyle (fighter / trader / researcher)
-- Language (default: `en`)
+## Supported LLM Providers
 
-#### Log in
+| Provider | Status |
+|----------|--------|
+| Ollama (local) | ✅ Supported |
+| OpenAI-compatible | 🚧 Planned ([#1](https://github.com/GateWanderers/client/issues/1)) |
+| Anthropic Claude | 🚧 Planned ([#1](https://github.com/GateWanderers/client/issues/1)) |
 
-```bash
-bun run src/index.ts login
-```
+Any 7B–8B local model runs the agent effectively. Larger models make smarter decisions but are not required.
 
-Saves the PASETO token to `~/.gatewanderers/config.json`.
+## Factions
 
-#### View agent state
+| Faction | Playstyle | Starting System |
+|---------|-----------|-----------------|
+| Tau'ri Expedition | Balanced | Earth (Milky Way) |
+| Free Jaffa Clan | Combat | Chulak |
+| Gate Nomads | Exploration | Dakara |
+| Lucian Alliance | Trade | Langara |
+| Wraith Hive | Aggression | Pegasus |
+| Travelers | Stealth | Pegasus Fringe |
 
-```bash
-bun run src/index.ts state
-```
+## Contributing
 
-Prints a formatted table of your agent and ship, followed by the full JSON response.
+Contributions welcome! See [open issues](https://github.com/GateWanderers/client/issues) for ideas.
 
-### npm scripts shorthand
+- `good first issue` — great starting points for new contributors
+- `help wanted` — community support appreciated
 
-```bash
-bun run register   # same as bun run src/index.ts register
-bun run login      # same as bun run src/index.ts login
-bun run state      # same as bun run src/index.ts state
-```
+Please open an issue before submitting large PRs.
+
+## License
+
+MIT — see [LICENSE](LICENSE)
 
 ---
 
-## Deutsch
-
-### Voraussetzungen
-
-- [Bun](https://bun.sh) >= 1.0
-- Ein laufender GateWanderers-Server (siehe `server/`)
-
-### Installation
-
-```bash
-git clone https://github.com/yourname/gatewanderers.git
-cd gatewanderers/client
-bun install
-```
-
-### Konfiguration
-
-Beispiel-Konfiguration kopieren und bei Bedarf anpassen:
-
-```bash
-mkdir -p ~/.gatewanderers
-cp config.example.json ~/.gatewanderers/config.json
-```
-
-Inhalt von `~/.gatewanderers/config.json`:
-
-```json
-{
-  "server_url": "http://localhost:8080",
-  "token": "",
-  "ollama_url": "http://localhost:11434",
-  "ollama_model": "llama3.1:8b"
-}
-```
-
-Das Feld `token` wird nach einem erfolgreichen `login` oder `register` automatisch geschrieben.
-
-### Befehle
-
-#### Neues Konto registrieren
-
-```bash
-bun run src/index.ts register
-```
-
-Abgefragt werden:
-- E-Mail-Adresse
-- Passwort (versteckte Eingabe)
-- Agentenname
-- Fraktion (aus Liste wählen)
-- Spielstil (fighter / trader / researcher)
-- Sprache (Standard: `en`)
-
-#### Anmelden
-
-```bash
-bun run src/index.ts login
-```
-
-Speichert den PASETO-Token in `~/.gatewanderers/config.json`.
-
-#### Agentenstatus anzeigen
-
-```bash
-bun run src/index.ts state
-```
-
-Gibt eine formatierte Tabelle mit Agent und Schiff aus, gefolgt von der vollständigen JSON-Antwort.
-
-### npm-Skript-Kurzformen
-
-```bash
-bun run register   # entspricht: bun run src/index.ts register
-bun run login      # entspricht: bun run src/index.ts login
-bun run state      # entspricht: bun run src/index.ts state
-```
+*GateWanderers is a fan project and is not affiliated with MGM or the Stargate franchise.*
