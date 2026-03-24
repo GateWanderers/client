@@ -254,6 +254,11 @@
     #toast.visible { opacity: 1; }
     #toast.ok   { border-color: var(--success); color: #50d080; }
     #toast.err  { border-color: var(--danger);  color: var(--danger-hi); }
+
+    /* ── CHARTS ── */
+    .chart-wrap { padding: 0.75rem 0; }
+    .chart-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.5rem; }
+    canvas.chart { width: 100%; display: block; }
   </style>
 </head>
 <body>
@@ -292,6 +297,7 @@
     <div class="nav-section">OVERVIEW</div>
     <div class="nav-item active" data-section="health">Health</div>
     <div class="nav-item" data-section="stats">Statistics</div>
+    <div class="nav-item" data-section="charts">Charts</div>
     <div class="nav-sep"></div>
     <div class="nav-section">GAME</div>
     <div class="nav-item" data-section="ticker">Ticker</div>
@@ -332,6 +338,28 @@
         <div class="panel-header"><h2>GAME STATISTICS</h2><button class="accent" onclick="loadStats()">Refresh</button></div>
         <div class="panel-body">
           <div class="stats-row" id="stats-row"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CHARTS ── -->
+    <div class="section" id="section-charts">
+      <div class="panel">
+        <div class="panel-header"><h2>TOP CREDITS</h2></div>
+        <div class="panel-body">
+          <div class="chart-wrap"><canvas id="chart-credits" class="chart" height="200"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>TOP XP</h2></div>
+        <div class="panel-body">
+          <div class="chart-wrap"><canvas id="chart-xp" class="chart" height="200"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>FACTION POWER</h2></div>
+        <div class="panel-body">
+          <div class="chart-wrap"><canvas id="chart-factions" class="chart" height="200"></canvas></div>
         </div>
       </div>
     </div>
@@ -751,6 +779,7 @@ function refreshSection(name) {
     audit:    loadAudit,
     livefeed: () => {},
     gevents:  loadGEvents,
+    charts:   loadCharts,
   }[name] || (() => {}))();
 }
 
@@ -762,6 +791,7 @@ function loadAll() {
   loadClients();
   loadAudit();
   loadGEvents();
+  loadCharts();
 }
 
 /* ═══════════════════ NAVIGATION ═══════════════════ */
@@ -880,6 +910,88 @@ async function loadStats() {
     const lbl = document.createElement('div'); lbl.className = 'label'; lbl.textContent = c.label;
     const val = document.createElement('div'); val.className = 'value'; val.textContent = d[c.key] ?? '—';
     chip.appendChild(lbl); chip.appendChild(val); row.appendChild(chip);
+  });
+}
+
+/* ═══════════════════ CHARTS ═══════════════════ */
+const FACTION_CHART_COLORS = {
+  tau_ri:              '#4080e0',
+  free_jaffa:          '#e08830',
+  gate_nomad:          '#9060d0',
+  system_lord_remnant: '#d04040',
+  wraith_brood:        '#40b060',
+  ancient_seeker:      '#d0a820',
+};
+
+function drawHBarChart(canvas, rows, valueKey, labelKey, colorKey) {
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.offsetWidth || 400;
+  const H   = 200;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  if (!rows || rows.length === 0) {
+    ctx.fillStyle = '#506070';
+    ctx.font = '12px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('No data', 10, 20);
+    return;
+  }
+
+  const data   = rows.slice(0, 6);
+  const maxV   = Math.max(...data.map(r => r[valueKey] || 0), 1);
+  const barH   = 24;
+  const gap    = 10;
+  const labelW = 140;
+  const padR   = 60;
+  const chartW = W - labelW - padR;
+
+  data.forEach(function(r, i) {
+    const y = i * (barH + gap) + 8;
+    const w = Math.max(2, ((r[valueKey] || 0) / maxV) * chartW);
+    const color = (colorKey && FACTION_CHART_COLORS[r[colorKey]]) || '#3070b0';
+
+    // Bar background
+    ctx.fillStyle = 'rgba(48,112,176,0.12)';
+    ctx.fillRect(labelW, y, chartW, barH);
+
+    // Bar fill
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(labelW, y, w, barH);
+    ctx.globalAlpha = 1;
+
+    // Label (right-aligned)
+    ctx.fillStyle = '#8090b0';
+    ctx.font = '11px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText((r[labelKey] || '?').replace(/_/g, ' '), labelW - 6, y + barH / 2 + 4);
+
+    // Value (after bar)
+    ctx.fillStyle = '#c8d0e0';
+    ctx.textAlign = 'left';
+    ctx.fillText((r[valueKey] || 0).toLocaleString(), labelW + w + 6, y + barH / 2 + 4);
+  });
+}
+
+async function loadCharts() {
+  const resp = await fetch('/leaderboard');
+  if (!resp.ok) return;
+  const d = await resp.json();
+
+  // Use requestAnimationFrame so canvas offsetWidth is accurate
+  requestAnimationFrame(function() {
+    const cc = document.getElementById('chart-credits');
+    const cx = document.getElementById('chart-xp');
+    const cf = document.getElementById('chart-factions');
+    if (cc) drawHBarChart(cc, d.top_credits || [],  'credits',    'name',    'faction');
+    if (cx) drawHBarChart(cx, d.top_xp      || [],  'experience', 'name',    'faction');
+    if (cf) drawHBarChart(cf, d.factions    || [],  'power',      'faction', 'faction');
   });
 }
 

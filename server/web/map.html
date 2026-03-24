@@ -414,7 +414,31 @@
 
       /* Legend hidden on mobile to save space */
       #legend { display: none; }
+
+      /* Compact topbar: hide status badge, remove flex separator */
+      #status-badge { display: none; }
+      .tb-sep { display: none; }
+      #lang-toggle { margin-left: auto; }
     }
+
+    /* ── CAPTURE ANIMATIONS ── */
+    @keyframes ring-capture-player {
+      0%   { stroke-width: 10; opacity: 0.6; }
+      50%  { stroke-width: 5;  opacity: 1;   }
+      100% { stroke-width: 2.5; opacity: 0.85; }
+    }
+    @keyframes ring-capture-npc {
+      0%   { stroke-width: 10; opacity: 0.7; }
+      50%  { stroke-width: 3;  opacity: 1;   }
+      100% { stroke-width: 1.5; opacity: 0.85; }
+    }
+    @keyframes ring-shockwave {
+      0%   { transform: scale(1);   opacity: 0.75; }
+      100% { transform: scale(2.8); opacity: 0;    }
+    }
+    .ring-anim-player { animation: ring-capture-player 1.5s ease-out forwards; }
+    .ring-anim-npc    { animation: ring-capture-npc    1.2s ease-out forwards; }
+    .ring-shockwave   { animation: ring-shockwave 1s ease-out forwards; transform-box: fill-box; transform-origin: center; pointer-events: none; }
 
     /* Hide sidebar handle on desktop */
     #sidebar-handle { display: none; }
@@ -728,6 +752,7 @@ const state = {
   agentVetoAt:     null,
   agentOverrideAt: null,
   controlData:     {},   // { [systemID]: {controller_faction, controller_type, defense_strength, income_per_tick} }
+  prevControlData: {},
 };
 
 let ws = null;
@@ -800,7 +825,7 @@ function toSVG(x, y, sc) {
 }
 
 /* ═══════════════════════ MAP RENDERING ═══════════════════════ */
-function renderMap(data, animate) {
+function renderMap(data, changedSystems) {
   if (!data || !data.systems || data.systems.length === 0) { setStatus('No data'); return; }
 
   const sc = computeScale(data.systems);
@@ -861,6 +886,13 @@ function renderMap(data, animate) {
         'stroke-width': ctrl.controller_type === 'player' ? 2.5 : 1.5,
         opacity: ctrl.controller_type === 'unclaimed' ? 0.3 : 0.85,
       });
+      if (changedSystems && changedSystems.has(sys.id)) {
+        ring.classList.add(ctrl.controller_type === 'player' ? 'ring-anim-player' : 'ring-anim-npc');
+        const wave = svgEl('circle', { cx: x, cy: y, r: 13, fill: 'none', stroke: ringColor, 'stroke-width': 3 });
+        wave.classList.add('ring-shockwave');
+        g.appendChild(wave);
+        (function(w) { setTimeout(function() { if (w.parentNode) w.parentNode.removeChild(w); }, 1100); })(wave);
+      }
       g.appendChild(ring);
 
       // Defense bar — small arc segment for player-held systems.
@@ -1059,14 +1091,22 @@ async function fetchMap(animate) {
     ]);
     if (!mapResp.ok) throw new Error('HTTP ' + mapResp.status);
     const data = await mapResp.json();
+    const changedSystems = new Set();
     if (ctrlResp.ok) {
       const ctrl = await ctrlResp.json();
-      state.controlData = {};
+      const newCtrl = {};
       for (const s of (ctrl.systems || [])) {
-        state.controlData[s.system_id] = s;
+        newCtrl[s.system_id] = s;
+        const prev = state.controlData[s.system_id];
+        if (prev && (prev.controller_faction !== s.controller_faction ||
+                     prev.controller_type    !== s.controller_type)) {
+          changedSystems.add(s.system_id);
+        }
       }
+      state.prevControlData = state.controlData;
+      state.controlData = newCtrl;
     }
-    renderMap(data, !!animate);
+    renderMap(data, changedSystems);
   } catch (err) {
     setStatus('Map error: ' + err.message);
   }
@@ -2100,7 +2140,7 @@ function initMobile() {
     sidebar.classList.toggle('mobile-open');
   });
 
-  // Close sidebar when a tab is selected on mobile
+  // Keep sidebar open when a tab is selected on mobile
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       if (window.innerWidth <= 768) {
@@ -2109,12 +2149,11 @@ function initMobile() {
     });
   });
 
-  // Pinch-to-zoom on SVG map
+  // Touch pan + pinch-zoom on SVG map
   const mapSvg = document.getElementById('map-svg');
-  let svgScale    = 1;
-  let svgOriginX  = 0;
-  let svgOriginY  = 0;
-  let lastDist    = null;
+  let lastDist   = null;
+  let lastTouchX = 0;
+  let lastTouchY = 0;
 
   function touchDist(touches) {
     const dx = touches[0].clientX - touches[1].clientX;
@@ -2122,10 +2161,10 @@ function initMobile() {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  function touchMid(touches, rect) {
+  function touchMid(touches) {
     return {
-      x: ((touches[0].clientX + touches[1].clientX) / 2) - rect.left,
-      y: ((touches[0].clientY + touches[1].clientY) / 2) - rect.top,
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
     };
   }
 
@@ -2133,22 +2172,36 @@ function initMobile() {
     if (e.touches.length === 2) {
       e.preventDefault();
       lastDist = touchDist(e.touches);
+    } else if (e.touches.length === 1) {
+      lastTouchX = e.touches[0].clientX;
+      lastTouchY = e.touches[0].clientY;
     }
   }, { passive: false });
 
   mapSvg.addEventListener('touchmove', function(e) {
+    e.preventDefault();
     if (e.touches.length === 2 && lastDist !== null) {
-      e.preventDefault();
+      // Pinch-to-zoom around the midpoint
       const newDist = touchDist(e.touches);
       const ratio   = newDist / lastDist;
-      svgScale      = Math.max(0.4, Math.min(svgScale * ratio, 6));
-      lastDist      = newDist;
-
-      const rect = mapSvg.getBoundingClientRect();
-      const mid  = touchMid(e.touches, rect);
-
-      // Apply transform to all layers via a wrapper group
-      applyMapZoom(svgScale, mid.x, mid.y, rect);
+      const mid     = touchMid(e.touches);
+      const rect    = mapSvg.getBoundingClientRect();
+      const cx = mid.x - rect.left;
+      const cy = mid.y - rect.top;
+      _svgPanX  = cx + (_svgPanX - cx) * ratio;
+      _svgPanY  = cy + (_svgPanY - cy) * ratio;
+      _svgScale = Math.max(0.4, Math.min(_svgScale * ratio, 6));
+      lastDist  = newDist;
+      applyMapTransform();
+    } else if (e.touches.length === 1) {
+      // Single-finger pan
+      const dx = e.touches[0].clientX - lastTouchX;
+      const dy = e.touches[0].clientY - lastTouchY;
+      _svgPanX  += dx;
+      _svgPanY  += dy;
+      lastTouchX = e.touches[0].clientX;
+      lastTouchY = e.touches[0].clientY;
+      applyMapTransform();
     }
   }, { passive: false });
 
@@ -2159,6 +2212,8 @@ function initMobile() {
 
 // Keep a persistent zoom group wrapping all map layers
 let _mapZoomGroup = null;
+let _svgScale = 1, _svgPanX = 0, _svgPanY = 0;
+
 function ensureMapZoomGroup() {
   if (_mapZoomGroup) return _mapZoomGroup;
   const svg = document.getElementById('map-svg');
@@ -2171,12 +2226,10 @@ function ensureMapZoomGroup() {
   return g;
 }
 
-function applyMapZoom(scale, cx, cy, rect) {
+function applyMapTransform() {
   const g = ensureMapZoomGroup();
-  // Translate so the pinch center stays fixed
-  const tx = cx - cx * scale;
-  const ty = cy - cy * scale;
-  g.setAttribute('transform', 'translate(' + tx + ',' + ty + ') scale(' + scale + ')');
+  g.setAttribute('transform',
+    'translate(' + _svgPanX + ',' + _svgPanY + ') scale(' + _svgScale + ')');
 }
 
 /* ═══════════════════════ INIT ═══════════════════════ */
