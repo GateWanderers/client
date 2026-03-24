@@ -69,6 +69,37 @@ func CombatBonuses(completed []string) (weaponBonus, shieldBonus float64) {
 	return
 }
 
+// TradeBonus returns an additive credit multiplier from completed research.
+// A return of 0.15 means +15% more credits earned per TRADE action.
+func TradeBonus(completed []string) float64 {
+	set := make(map[string]bool, len(completed))
+	for _, id := range completed {
+		set[id] = true
+	}
+
+	var bonus float64
+
+	// Universal
+	if set["advanced_sensors"] {
+		bonus += 0.05 // better market intelligence
+	}
+
+	// Gate Nomad — trade-focused faction
+	if set["black_market_contacts"] {
+		bonus += 0.15
+	}
+	if set["smuggler_hold"] {
+		bonus += 0.10
+	}
+
+	// System Lord Remnant
+	if set["goa_uld_symbiosis"] {
+		bonus += 0.10 // Goa'uld negotiation leverage
+	}
+
+	return bonus
+}
+
 // GatherBonus returns an additive yield multiplier from completed research.
 // A return of 0.20 means +20% more resources gathered per GATHER action.
 func GatherBonus(completed []string) float64 {

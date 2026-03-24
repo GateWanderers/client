@@ -55,9 +55,18 @@ type Alliance struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+// ResearchBonuses shows the active multipliers from completed research.
+type ResearchBonuses struct {
+	WeaponBonus float64 `json:"weapon_bonus"`
+	ShieldBonus float64 `json:"shield_bonus"`
+	GatherBonus float64 `json:"gather_bonus"`
+	TradeBonus  float64 `json:"trade_bonus"`
+}
+
 // AgentState is the combined agent + ship + alliances response payload.
 type AgentState struct {
-	Agent     *Agent     `json:"agent"`
-	Ship      *Ship      `json:"ship"`
-	Alliances []Alliance `json:"alliances"`
+	Agent           *Agent          `json:"agent"`
+	Ship            *Ship           `json:"ship"`
+	Alliances       []Alliance      `json:"alliances"`
+	ResearchBonuses ResearchBonuses `json:"research_bonuses"`
 }

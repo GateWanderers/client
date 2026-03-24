@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"gatewanderers/server/internal/research"
 )
 
 // BuyResult holds the outcome of a BUY action.
@@ -234,7 +236,15 @@ func processSell(ctx context.Context, pool *pgxpool.Pool, agentID string, params
 		}
 	}
 
-	totalGain := currentPrice * p.Quantity
+	baseGain := currentPrice * p.Quantity
+
+	// Apply research trade bonus.
+	var researchRaw []byte
+	_ = pool.QueryRow(ctx, `SELECT research FROM agents WHERE id = $1`, agentID).Scan(&researchRaw)
+	var completedResearch []string
+	_ = json.Unmarshal(researchRaw, &completedResearch)
+	tradeBonus := research.TradeBonus(completedResearch)
+	totalGain := baseGain + int(float64(baseGain)*tradeBonus)
 
 	// 4. Execute transaction.
 	tx, err := pool.Begin(ctx)

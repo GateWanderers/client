@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gatewanderers/server/internal/registry"
+	"gatewanderers/server/internal/research"
 )
 
 // handleAgentState returns the full agent + ship state for the authenticated account.
@@ -33,10 +34,21 @@ func (s *Server) handleAgentState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse completed research to compute active bonuses.
+	var completedResearch []string
+	_ = json.Unmarshal(agent.Research, &completedResearch)
+	weaponBonus, shieldBonus := research.CombatBonuses(completedResearch)
+
 	writeJSON(w, http.StatusOK, registry.AgentState{
 		Agent:     agent,
 		Ship:      ship,
 		Alliances: alliances,
+		ResearchBonuses: registry.ResearchBonuses{
+			WeaponBonus: weaponBonus,
+			ShieldBonus: shieldBonus,
+			GatherBonus: research.GatherBonus(completedResearch),
+			TradeBonus:  research.TradeBonus(completedResearch),
+		},
 	})
 }
 
