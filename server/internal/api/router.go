@@ -75,6 +75,9 @@ func (s *Server) NewRouter() http.Handler {
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/bounties",       s.handleGetBounties)
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/galactic-events", s.handleGetGalacticEvents)
 
+	// Public health check — no auth, no rate limit.
+	r.Get("/health", s.handleHealth)
+
 	// Static pages.
 	r.Get("/map", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "web/map.html")

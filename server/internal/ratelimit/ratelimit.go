@@ -4,6 +4,8 @@
 package ratelimit
 
 import (
+	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -31,6 +33,14 @@ func New(max int, window time.Duration) *Limiter {
 	}
 	// Background goroutine to prune stale entries every 5 minutes.
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("ratelimit: prune panic recovered",
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
+			}
+		}()
 		for range time.Tick(5 * time.Minute) {
 			l.prune()
 		}

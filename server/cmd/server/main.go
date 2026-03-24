@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -122,6 +123,15 @@ func main() {
 
 	// Start in a goroutine so we can listen for shutdown signals.
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("http server panic recovered",
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
+				os.Exit(1)
+			}
+		}()
 		slog.Info("server listening", "addr", addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("ListenAndServe failed", "err", err)

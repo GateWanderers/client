@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"math/rand"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -69,6 +70,14 @@ func (t *Ticker) Start(ctx context.Context) {
 	t.mu.Unlock()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("ticker: panic recovered",
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
+			}
+		}()
 		ticker := time.NewTicker(t.interval)
 		defer ticker.Stop()
 		for {

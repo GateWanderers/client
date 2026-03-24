@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -83,6 +84,15 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("stream: reader panic recovered",
+					"account", accountID,
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
+			}
+		}()
 		for {
 			// We don't process inbound messages, just drain them so the
 			// connection stays alive and we detect disconnects.
