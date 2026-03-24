@@ -92,8 +92,8 @@ func (e *Engine) runFactionBehavior(ctx context.Context, f faction, tickNumber i
 		}
 	}
 
-	// --- ALL factions: 12% chance recapture a player-held system in their territory ---
-	if rng.Float64() < 0.12 && len(f.TerritorySystems) > 0 {
+	// --- ALL factions: 9% chance recapture a player-held system in their territory ---
+	if rng.Float64() < 0.09 && len(f.TerritorySystems) > 0 {
 		e.runRecapture(ctx, f, tickNumber, rng)
 	}
 }

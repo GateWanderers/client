@@ -71,8 +71,8 @@ func (s *Server) handlePlaceBounty(w http.ResponseWriter, r *http.Request) {
 		TargetAgentID string `json:"target_agent_id"`
 		Amount        int    `json:"amount"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TargetAgentID == "" || body.Amount < 500 {
-		writeError(w, http.StatusBadRequest, "target_agent_id and amount (≥500) required")
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TargetAgentID == "" || body.Amount < 200 {
+		writeError(w, http.StatusBadRequest, "target_agent_id and amount (≥200) required")
 		return
 	}
 

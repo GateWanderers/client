@@ -60,10 +60,10 @@ func processRepair(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 		toRepair = *p.Amount
 	}
 
-	cost := toRepair * 3
+	cost := toRepair * 2
 	if cost > credits {
-		toRepair = credits / 3
-		cost = toRepair * 3
+		toRepair = credits / 2
+		cost = toRepair * 2
 	}
 	if toRepair <= 0 {
 		return upgradeResult{PayloadEN: "Insufficient credits for repair.", PayloadDE: "Nicht genug Credits für Reparatur.", EventType: "repair_fail"}
