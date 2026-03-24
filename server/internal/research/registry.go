@@ -282,6 +282,126 @@ var Registry = map[string]Tech{
 		EffectsDE:     "+15% Waffenschaden",
 	},
 
+	// ── Mining techs ────────────────────────────────────────────────────────
+
+	// Universal mining
+	"basic_mining_tech": {
+		ID:            "basic_mining_tech",
+		Name:          "Basic Mining Technology",
+		NameDE:        "Grundlegende Minetechnologie",
+		Description:   "Foundational ore extraction techniques for improved MINE yields.",
+		DescriptionDE: "Grundlegende Erzabbautechniken für verbesserte MINE-Erträge.",
+		Faction:       "all",
+		TicksRequired: 6,
+		Cost:          []ResourceCost{{Type: "naquadah", Amount: 25}},
+		Prerequisites: []string{"basic_navigation"},
+		Effects:       "+15% MINE yield",
+		EffectsDE:     "+15% MINE-Ertrag",
+	},
+	"geological_survey": {
+		ID:            "geological_survey",
+		Name:          "Geological Survey",
+		NameDE:        "Geologische Erkundung",
+		Description:   "Advanced scanning tech that extends survey validity by 50%.",
+		DescriptionDE: "Fortgeschrittene Scantechnik, die die Survey-Gültigkeit um 50% verlängert.",
+		Faction:       "all",
+		TicksRequired: 8,
+		Cost:          []ResourceCost{{Type: "trinium", Amount: 20}},
+		Prerequisites: []string{"advanced_sensors"},
+		Effects:       "Survey duration ×1.5",
+		EffectsDE:     "Survey-Dauer ×1.5",
+	},
+
+	// Gate Nomad mining
+	"bulk_hauler": {
+		ID:            "bulk_hauler",
+		Name:          "Bulk Hauler Conversion",
+		NameDE:        "Massentransporter-Umbau",
+		Description:   "Retrofits any ship with hidden cargo pods, adding +200 cargo capacity.",
+		DescriptionDE: "Rüstet jedes Schiff mit versteckten Ladepods nach, +200 Ladekapazität.",
+		Faction:       "gate_nomad",
+		TicksRequired: 10,
+		Cost:          []ResourceCost{{Type: "trinium", Amount: 50}},
+		Prerequisites: []string{"smuggler_hold"},
+		Effects:       "+200 cargo capacity",
+		EffectsDE:     "+200 Ladekapazität",
+	},
+
+	// Tau'ri mining
+	"naquadah_drill": {
+		ID:            "naquadah_drill",
+		Name:          "Naquadah Drill Array",
+		NameDE:        "Naquadah-Bohreranlage",
+		Description:   "Specialized drilling rigs optimized for naquadah and naquadriah extraction (+25% yield).",
+		DescriptionDE: "Spezialisierte Bohranlagen für Naquadah und Naquadriah-Abbau (+25% Ertrag).",
+		Faction:       "tau_ri",
+		TicksRequired: 12,
+		Cost:          []ResourceCost{{Type: "naquadah", Amount: 60}, {Type: "trinium", Amount: 20}},
+		Prerequisites: []string{"ancient_interface"},
+		Effects:       "+25% naquadah/naquadriah MINE yield",
+		EffectsDE:     "+25% Naquadah/Naquadriah MINE-Ertrag",
+	},
+
+	// Ancient Seeker mining
+	"ancient_extraction": {
+		ID:            "ancient_extraction",
+		Name:          "Ancient Extraction Matrix",
+		NameDE:        "Alte Extraktionsmatrix",
+		Description:   "Ancient resonance technology for exceptional ancient_tech extraction (+30% yield, passive mini-gather per tick).",
+		DescriptionDE: "Alte Resonanztechnologie für außergewöhnlichen Ancient-Tech-Abbau (+30% Ertrag, passives Mini-Gather pro Tick).",
+		Faction:       "ancient_seeker",
+		TicksRequired: 18,
+		Cost:          []ResourceCost{{Type: "ancient_tech", Amount: 150}},
+		Prerequisites: []string{"ancient_database"},
+		Effects:       "+30% ancient_tech yield, passive gather",
+		EffectsDE:     "+30% Ancient-Tech-Ertrag, passives Sammeln",
+	},
+
+	// Free Jaffa mining
+	"strip_mining": {
+		ID:            "strip_mining",
+		Name:          "Strip Mining Protocol",
+		NameDE:        "Abbauprotokoll",
+		Description:   "Aggressive extraction: 2× MINE yield but 2× node depletion.",
+		DescriptionDE: "Aggressiver Abbau: 2× MINE-Ertrag, aber 2× Node-Erschöpfung.",
+		Faction:       "free_jaffa",
+		TicksRequired: 10,
+		Cost:          []ResourceCost{{Type: "naquadah", Amount: 40}},
+		Prerequisites: []string{"jaffa_tactics"},
+		Effects:       "2× MINE yield + 2× depletion",
+		EffectsDE:     "2× MINE-Ertrag + 2× Erschöpfung",
+	},
+
+	// System Lord Remnant mining
+	"automated_harvesters": {
+		ID:            "automated_harvesters",
+		Name:          "Automated Harvesters",
+		NameDE:        "Automatisierte Erntemaschinerie",
+		Description:   "Drone harvesters passively gather a small amount of resources each tick.",
+		DescriptionDE: "Drohnen-Ernter sammeln passiv jede Runde eine kleine Menge Ressourcen.",
+		Faction:       "system_lord_remnant",
+		TicksRequired: 15,
+		Cost:          []ResourceCost{{Type: "naquadah", Amount: 80}},
+		Prerequisites: []string{"death_glider_upgrade"},
+		Effects:       "Passive gather 3–8 units/tick",
+		EffectsDE:     "Passives Sammeln 3–8 Einheiten/Tick",
+	},
+
+	// Wraith Brood mining
+	"bio_extraction": {
+		ID:            "bio_extraction",
+		Name:          "Bio-Extraction Technique",
+		NameDE:        "Bio-Extraktionstechnik",
+		Description:   "Wraith bio-tech harvests bonus resources from defeated NPCs.",
+		DescriptionDE: "Wraith-Biotechnik erntet Bonusressourcen von besiegten NPCs.",
+		Faction:       "wraith_brood",
+		TicksRequired: 12,
+		Cost:          []ResourceCost{{Type: "naquadah", Amount: 50}},
+		Prerequisites: []string{"hive_mind_link"},
+		Effects:       "+10–30 resources on NPC kill",
+		EffectsDE:     "+10–30 Ressourcen bei NPC-Kill",
+	},
+
 	// Ancient Seeker techs (faction="ancient_seeker")
 	"ancient_database": {
 		ID:            "ancient_database",

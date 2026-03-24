@@ -33,17 +33,19 @@ type Agent struct {
 
 // Ship represents a player's ship.
 type Ship struct {
-	ID           string          `json:"id"`
-	AgentID      string          `json:"agent_id"`
-	Name         string          `json:"name"`
-	Class        string          `json:"class"`
-	HullPoints   int             `json:"hull_points"`
-	MaxHullPoints int            `json:"max_hull_points"`
-	GalaxyID     string          `json:"galaxy_id"`
-	SystemID     string          `json:"system_id"`
-	PlanetID     *string         `json:"planet_id"`
-	Equipment    json.RawMessage `json:"equipment"`
-	CreatedAt    time.Time       `json:"created_at"`
+	ID            string          `json:"id"`
+	AgentID       string          `json:"agent_id"`
+	Name          string          `json:"name"`
+	Class         string          `json:"class"`
+	HullPoints    int             `json:"hull_points"`
+	MaxHullPoints int             `json:"max_hull_points"`
+	GalaxyID      string          `json:"galaxy_id"`
+	SystemID      string          `json:"system_id"`
+	PlanetID      *string         `json:"planet_id"`
+	Equipment     json.RawMessage `json:"equipment"`
+	CreatedAt     time.Time       `json:"created_at"`
+	CargoCapacity int             `json:"cargo_capacity"`
+	CargoUsed     int             `json:"cargo_used"`
 }
 
 // Alliance represents a directional alliance record.

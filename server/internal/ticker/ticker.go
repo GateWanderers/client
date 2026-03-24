@@ -268,6 +268,15 @@ func (t *Ticker) processTick(ctx context.Context) error {
 	// Process expired auctions.
 	processExpiredAuctions(ctx, t.pool, tickNumber)
 
+	// Regenerate mining node reserves.
+	t.regenMiningNodes(ctx)
+
+	// Passive gather for agents with automated_harvesters research.
+	t.passiveHarvest(ctx, tickNumber)
+
+	// Clean up expired skill boosts.
+	_, _ = t.pool.Exec(ctx, `DELETE FROM skill_boosts WHERE expires_at_tick < $1`, tickNumber)
+
 	slog.Info("ticker: tick complete", "tick", tickNumber, "actions", len(actions))
 	return nil
 }
@@ -599,6 +608,27 @@ func (t *Ticker) processAction(ctx context.Context, a queuedAction, tickNumber i
 		payloadEN = result.PayloadEN
 		payloadDE = result.PayloadDE
 		eventType = "defend"
+
+	case "MINE":
+		result := processMine(ctx, t.pool, a.AgentID, a.Parameters, tickNumber)
+		payloadEN = result.PayloadEN
+		payloadDE = result.PayloadDE
+		eventType = "mine"
+		if result.ResourceType != "" {
+			missions.RecordGather(ctx, t.pool, a.AgentID, result.ResourceType, result.Amount, tickNumber)
+		}
+
+	case "SURVEY":
+		result := processSurvey(ctx, t.pool, a.AgentID, tickNumber)
+		payloadEN = result.PayloadEN
+		payloadDE = result.PayloadDE
+		eventType = "survey"
+
+	case "USE_SKILL":
+		result := processUseSkill(ctx, t.pool, a.AgentID, a.Parameters, tickNumber)
+		payloadEN = result.PayloadEN
+		payloadDE = result.PayloadDE
+		eventType = "use_skill"
 
 	default:
 		payloadEN = fmt.Sprintf("Unknown action type: %s", a.ActionType)
@@ -942,6 +972,70 @@ func (t *Ticker) decaySystemDefenses(ctx context.Context) {
 	)
 	if err != nil {
 		slog.Error("ticker: decaySystemDefenses", "err", err)
+	}
+}
+
+// regenMiningNodes restores reserves on all mining nodes by their regen_per_tick amount.
+func (t *Ticker) regenMiningNodes(ctx context.Context) {
+	_, err := t.pool.Exec(ctx,
+		`UPDATE mining_nodes
+		 SET current_reserves = LEAST(max_reserves, current_reserves + regen_per_tick)`,
+	)
+	if err != nil {
+		slog.Error("ticker: regenMiningNodes", "err", err)
+	}
+}
+
+// passiveHarvest gives a small automatic resource yield to agents with automated_harvesters research.
+func (t *Ticker) passiveHarvest(ctx context.Context, tickNumber int64) {
+	// Find all active agents with automated_harvesters in their research.
+	rows, err := t.pool.Query(ctx,
+		`SELECT a.id, s.system_id
+		 FROM agents a
+		 JOIN ships s ON s.agent_id = a.id
+		 WHERE a.status = 'active'
+		   AND a.research @> '["automated_harvesters"]'::jsonb`,
+	)
+	if err != nil {
+		slog.Error("ticker: passiveHarvest query", "err", err)
+		return
+	}
+	type entry struct{ AgentID, SystemID string }
+	var entries []entry
+	for rows.Next() {
+		var e entry
+		if rows.Scan(&e.AgentID, &e.SystemID) == nil {
+			entries = append(entries, e)
+		}
+	}
+	rows.Close()
+
+	rng := rand.New(rand.NewSource(tickNumber + 77777))
+	for _, e := range entries {
+		// Find a node in the agent's current system.
+		var resourceType string
+		var reserves int
+		if err := t.pool.QueryRow(ctx,
+			`SELECT resource_type, current_reserves FROM mining_nodes
+			 WHERE system_id = $1 AND current_reserves > 0
+			 ORDER BY current_reserves DESC LIMIT 1`,
+			e.SystemID,
+		).Scan(&resourceType, &reserves); err != nil {
+			continue // no resources here
+		}
+		amount := 3 + rng.Intn(6) // 3–8 units
+		if amount > reserves {
+			amount = reserves
+		}
+		_, _ = t.pool.Exec(ctx,
+			`INSERT INTO inventories (agent_id, resource_type, quantity) VALUES ($1, $2, $3)
+			 ON CONFLICT (agent_id, resource_type) DO UPDATE SET quantity = inventories.quantity + EXCLUDED.quantity`,
+			e.AgentID, resourceType, amount,
+		)
+		_, _ = t.pool.Exec(ctx,
+			`UPDATE mining_nodes SET current_reserves = GREATEST(0, current_reserves - $1) WHERE system_id = $2 AND resource_type = $3`,
+			amount, e.SystemID, resourceType,
+		)
 	}
 }
 

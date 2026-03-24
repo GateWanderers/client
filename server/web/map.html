@@ -444,6 +444,28 @@
     .rc-bar      { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 0.1rem; }
     .rc-bar-fill { height: 100%; background: var(--warn); border-radius: 2px; transition: width 0.4s; }
 
+    /* ── SKILL CARDS ── */
+    .sk {
+      background: #10141f; border: 1px solid var(--border); border-radius: 5px;
+      padding: 0.4rem 0.5rem; display: flex; flex-direction: column; gap: 0.15rem;
+      font-size: 0.75rem;
+    }
+    .sk.ready   { border-color: #1e4040; }
+    .sk.cooldown{ opacity: 0.65; }
+    .sk-header  { display: flex; justify-content: space-between; align-items: center; }
+    .sk-name    { font-weight: 600; color: var(--accent-hi); }
+    .sk-level   { font-size: 0.68rem; color: var(--warn); background: #1a1f2e; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .sk-desc    { color: var(--muted); font-size: 0.7rem; }
+    .sk-cd      { color: #e06060; font-size: 0.68rem; }
+    .sk-xpbar   { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 0.1rem; }
+    .sk-xpfill  { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
+    /* ── NODE RICHNESS BADGES ── */
+    .node-badge { display: inline-block; font-size: 0.65rem; padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 600; }
+    .node-poor    { background: #1e2030; color: #888; }
+    .node-normal  { background: #1a2a1a; color: #6c6; }
+    .node-rich    { background: #2a1a00; color: #fa0; }
+    .node-bonanza { background: #2a002a; color: #f6f; }
+
     /* ── CAPTURE ANIMATIONS ── */
     @keyframes ring-capture-player {
       0%   { stroke-width: 10; opacity: 0.6; }
@@ -577,6 +599,8 @@
         <button class="tab-btn"        data-tab="tab-chat">Chat</button>
         <button class="tab-btn"        data-tab="tab-clan">Clan</button>
         <button class="tab-btn"        data-tab="tab-bounty">Bounty</button>
+        <button class="tab-btn"        data-tab="tab-mining">⛏</button>
+        <button class="tab-btn"        data-tab="tab-skills">★</button>
         <button class="tab-btn"        data-tab="tab-leaderboard">⭐</button>
       </div>
 
@@ -650,6 +674,41 @@
         <div id="research-completed-wrap"></div>
         <div id="research-locked-wrap"></div>
         <div id="research-empty" style="color:var(--muted);font-size:0.78rem;display:none;">Login to view research.</div>
+      </div>
+
+      <!-- MINING TAB -->
+      <div class="tab-panel" id="tab-mining" style="flex-direction:column;gap:0;overflow-y:auto;">
+        <div class="section-label">Cargo</div>
+        <div id="mining-cargo-bar" style="margin:0 0 0.5rem 0;">
+          <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--muted)">
+            <span>Laderaum</span><span id="mining-cargo-txt">—</span>
+          </div>
+          <div style="height:6px;background:var(--border);border-radius:3px;margin-top:3px;">
+            <div id="mining-cargo-fill" style="height:100%;background:var(--accent);border-radius:3px;width:0%"></div>
+          </div>
+        </div>
+        <div class="section-label">Aktionen</div>
+        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.5rem;">
+          <button class="btn-primary" style="font-size:0.72rem;padding:0.2rem 0.5rem" onclick="queueAction('SURVEY',{})">📡 Survey</button>
+          <select id="mine-resource-sel" style="font-size:0.72rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:0.2rem 0.4rem;">
+            <option value="naquadah">Naquadah</option>
+            <option value="trinium">Trinium</option>
+            <option value="naquadriah">Naquadriah</option>
+            <option value="ancient_tech">Ancient Tech</option>
+          </select>
+          <button class="btn-warn" style="font-size:0.72rem;padding:0.2rem 0.5rem" onclick="queueMine()">⛏ Mine</button>
+        </div>
+        <div class="section-label">Surveys</div>
+        <div id="mining-surveys-list" style="font-size:0.75rem;color:var(--muted);">—</div>
+        <div class="section-label" style="margin-top:0.5rem;">Nodes (aktuelles System)</div>
+        <div id="mining-nodes-list" style="font-size:0.75rem;color:var(--muted);">—</div>
+        <div id="mining-empty" style="color:var(--muted);font-size:0.78rem;display:none;">Login erforderlich.</div>
+      </div>
+
+      <!-- SKILLS TAB -->
+      <div class="tab-panel" id="tab-skills" style="flex-direction:column;gap:0;overflow-y:auto;">
+        <div id="skills-list" style="display:flex;flex-direction:column;gap:0.4rem;padding-top:0.2rem;"></div>
+        <div id="skills-empty" style="color:var(--muted);font-size:0.78rem;display:none;">Login erforderlich.</div>
       </div>
 
       <!-- BOUNTY TAB -->
@@ -1353,6 +1412,10 @@ function connectWS() {
         if (mTab && mTab.classList.contains('active')) loadMissions();
         const rTab = document.getElementById('tab-research');
         if (rTab && rTab.classList.contains('active')) loadResearch();
+        const mTab = document.getElementById('tab-mining');
+        if (mTab && mTab.classList.contains('active')) loadMining();
+        const sTab = document.getElementById('tab-skills');
+        if (sTab && sTab.classList.contains('active')) loadSkills();
       }
     } else if (msg.type === 'chat' && msg.event) {
       const chatMsg = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
@@ -1706,6 +1769,213 @@ async function queueResearch(techID, techName) {
   } catch (_) { alert('Network error'); }
 }
 
+/* ═══════════════════════ MINING ═══════════════════════ */
+async function loadMining() {
+  if (!state.token) {
+    document.getElementById('mining-empty').style.display = '';
+    return;
+  }
+  document.getElementById('mining-empty').style.display = 'none';
+
+  const cargo = state.agentState?.ship?.cargo_capacity || 0;
+  const used  = state.agentState?.ship?.cargo_used || 0;
+  document.getElementById('mining-cargo-txt').textContent = used + ' / ' + cargo;
+  const pct = cargo > 0 ? Math.min(100, Math.round(used / cargo * 100)) : 0;
+  const fill = document.getElementById('mining-cargo-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = pct > 85 ? '#e06060' : 'var(--accent)';
+
+  await loadSurveys();
+  const sysID = state.agentState?.location?.system_id;
+  if (sysID) await loadMiningNodes(sysID);
+}
+
+async function loadSurveys() {
+  const el = document.getElementById('mining-surveys-list');
+  while (el.firstChild) el.removeChild(el.firstChild);
+  try {
+    const resp = await fetch('/agent/surveys', { headers: authHeaders() });
+    const d = await resp.json();
+    if (!d.surveys || d.surveys.length === 0) {
+      el.textContent = 'Keine aktiven Surveys.';
+      return;
+    }
+    d.surveys.forEach(sv => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;padding:0.15rem 0;border-bottom:1px solid var(--border)';
+      const sys = document.createElement('span');
+      sys.style.color = 'var(--text)';
+      sys.textContent = sv.system_id;
+      const ticks = document.createElement('span');
+      ticks.style.color = 'var(--muted)';
+      ticks.textContent = sv.ticks_remaining + ' Ticks';
+      row.appendChild(sys);
+      row.appendChild(ticks);
+      el.appendChild(row);
+    });
+  } catch (_) { el.textContent = 'Fehler beim Laden.'; }
+}
+
+async function loadMiningNodes(systemID) {
+  const el = document.getElementById('mining-nodes-list');
+  while (el.firstChild) el.removeChild(el.firstChild);
+  try {
+    const resp = await fetch('/galaxy/nodes/' + encodeURIComponent(systemID), {
+      headers: state.token ? authHeaders() : {}
+    });
+    const d = await resp.json();
+    if (!d.nodes || d.nodes.length === 0) {
+      el.textContent = 'Keine Mineralvorkommen in diesem System.';
+      return;
+    }
+    if (!d.surveyed) {
+      const note = document.createElement('div');
+      note.style.cssText = 'color:var(--muted);font-size:0.7rem;margin-bottom:0.3rem';
+      note.textContent = '📡 Survey ausführen, um Details zu sehen.';
+      el.appendChild(note);
+    }
+    d.nodes.forEach(node => {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:0.25rem 0;border-bottom:1px solid var(--border)';
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.gap = '0.4rem';
+      header.style.alignItems = 'center';
+      const name = document.createElement('span');
+      name.style.cssText = 'color:var(--text);font-weight:600';
+      name.textContent = node.resource_type;
+      header.appendChild(name);
+      if (node.surveyed && node.richness) {
+        const badge = document.createElement('span');
+        badge.className = 'node-badge node-' + node.richness;
+        badge.textContent = node.richness;
+        header.appendChild(badge);
+      }
+      row.appendChild(header);
+      if (node.surveyed && node.richness) {
+        const pct = node.max_reserves > 0 ? Math.min(100, Math.round(node.current_reserves / node.max_reserves * 100)) : 0;
+        const barWrap = document.createElement('div');
+        barWrap.style.cssText = 'height:4px;background:var(--border);border-radius:2px;margin-top:3px';
+        const barFill = document.createElement('div');
+        barFill.style.cssText = 'height:100%;background:var(--accent);border-radius:2px';
+        barFill.style.width = pct + '%';
+        barWrap.appendChild(barFill);
+        row.appendChild(barWrap);
+        const info = document.createElement('div');
+        info.style.cssText = 'color:var(--muted);font-size:0.68rem;margin-top:1px';
+        info.textContent = node.current_reserves + '/' + node.max_reserves + ' · +' + node.regen_per_tick + '/tick';
+        row.appendChild(info);
+      }
+      el.appendChild(row);
+    });
+  } catch (_) { el.textContent = 'Fehler beim Laden.'; }
+}
+
+function queueMine() {
+  const res = document.getElementById('mine-resource-sel').value;
+  queueAction('MINE', { resource_type: res });
+}
+
+/* ═══════════════════════ SKILLS ═══════════════════════ */
+async function loadSkills() {
+  if (!state.token) {
+    document.getElementById('skills-empty').style.display = '';
+    return;
+  }
+  document.getElementById('skills-empty').style.display = 'none';
+  const el = document.getElementById('skills-list');
+  while (el.firstChild) el.removeChild(el.firstChild);
+  try {
+    const resp = await fetch('/agent/skills', { headers: authHeaders() });
+    const d = await resp.json();
+    if (!d.skills || d.skills.length === 0) {
+      const msg = document.createElement('div');
+      msg.style.cssText = 'color:var(--muted);font-size:0.78rem';
+      msg.textContent = 'Keine Skills verfügbar.';
+      el.appendChild(msg);
+      return;
+    }
+    const lang = document.documentElement.lang || 'de';
+    d.skills.forEach(sk => {
+      const card = document.createElement('div');
+      card.className = 'sk ' + (sk.ready ? 'ready' : 'cooldown');
+
+      const header = document.createElement('div');
+      header.className = 'sk-header';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'sk-name';
+      nameEl.textContent = (lang === 'de' && sk.name_de) ? sk.name_de : sk.name;
+      const lvlEl = document.createElement('span');
+      lvlEl.className = 'sk-level';
+      lvlEl.textContent = 'L' + sk.level;
+      header.appendChild(nameEl);
+      header.appendChild(lvlEl);
+      card.appendChild(header);
+
+      const descEl = document.createElement('div');
+      descEl.className = 'sk-desc';
+      descEl.textContent = (lang === 'de' && sk.description_de) ? sk.description_de : sk.description;
+      card.appendChild(descEl);
+
+      const xpTotal = sk.xp + (sk.xp_to_next_level > 0 ? sk.xp_to_next_level : 0);
+      const xpPct = xpTotal > 0 ? Math.min(100, Math.round(sk.xp / xpTotal * 100)) : 100;
+      const xpBar = document.createElement('div');
+      xpBar.className = 'sk-xpbar';
+      const xpFill = document.createElement('div');
+      xpFill.className = 'sk-xpfill';
+      xpFill.style.width = xpPct + '%';
+      xpBar.appendChild(xpFill);
+      card.appendChild(xpBar);
+
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:0.2rem';
+      const xpInfo = document.createElement('span');
+      xpInfo.style.cssText = 'color:var(--muted);font-size:0.68rem';
+      xpInfo.textContent = 'XP ' + sk.xp + (sk.xp_to_next_level > 0 ? ' / +' + sk.xp_to_next_level + ' für L' + (sk.level + 1) : ' (max)');
+      footer.appendChild(xpInfo);
+      if (sk.ticks_on_cooldown > 0) {
+        const cd = document.createElement('span');
+        cd.className = 'sk-cd';
+        cd.textContent = '⏳ ' + sk.ticks_on_cooldown + ' Ticks';
+        footer.appendChild(cd);
+      } else {
+        const btn = document.createElement('button');
+        btn.className = 'btn-primary';
+        btn.style.cssText = 'font-size:0.68rem;padding:0.15rem 0.4rem';
+        btn.textContent = 'Aktivieren';
+        const skID = sk.skill_id;
+        const skName = (lang === 'de' && sk.name_de) ? sk.name_de : sk.name;
+        btn.addEventListener('click', () => activateSkill(skID, skName));
+        footer.appendChild(btn);
+      }
+      card.appendChild(footer);
+      el.appendChild(card);
+    });
+  } catch (_) {
+    const msg = document.createElement('div');
+    msg.style.color = 'var(--muted)';
+    msg.textContent = 'Fehler beim Laden.';
+    el.appendChild(msg);
+  }
+}
+
+async function activateSkill(skillID, skillName) {
+  if (!state.token) return;
+  try {
+    const resp = await fetch('/agent/action', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ type: 'USE_SKILL', parameters: { skill_id: skillID } }),
+    });
+    const d = await resp.json();
+    if (d.queued) {
+      loadSkills();
+    } else {
+      alert(d.error || 'Skill konnte nicht aktiviert werden');
+    }
+  } catch (_) { alert('Network error'); }
+}
+
 /* ═══════════════════════ VETO / OVERRIDE ═══════════════════════ */
 async function doVeto() {
   try {
@@ -1753,6 +2023,8 @@ function initTabs() {
       if (btn.dataset.tab === 'tab-inv')          fetchInventory();
       if (btn.dataset.tab === 'tab-mission')      loadMissions();
       if (btn.dataset.tab === 'tab-research')     loadResearch();
+      if (btn.dataset.tab === 'tab-mining')       loadMining();
+      if (btn.dataset.tab === 'tab-skills')       loadSkills();
       if (btn.dataset.tab === 'tab-chat')         loadChatHistory(chat.channel);
       if (btn.dataset.tab === 'tab-leaderboard')  loadLeaderboard();
       if (btn.dataset.tab === 'tab-bounty')       loadBounties();
@@ -2033,6 +2305,23 @@ function updateShipUpgradeDisplay(ship) {
     ' · Shld L' + (ship.shield_level || 1) +
     ' · Eng L' + (ship.engine_level || 1) +
     ' · Cargo L' + (ship.cargo_level || 1);
+}
+
+function queueAction(type, parameters) {
+  if (!state.token) return;
+  fetch('/agent/action', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ type, parameters }),
+  }).then(r => r.json()).then(d => {
+    if (d.queued) {
+      // Refresh relevant tab if open
+      const mTab = document.getElementById('tab-mining');
+      if (mTab && mTab.classList.contains('active')) loadMining();
+    } else {
+      alert(d.error || 'Action failed');
+    }
+  });
 }
 
 function queueUpgrade(system) {

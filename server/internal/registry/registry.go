@@ -150,16 +150,19 @@ func (r *Registry) GetAgentState(ctx context.Context, accountID string) (*Agent,
 
 	var ship Ship
 	err = r.pool.QueryRow(ctx,
-		`SELECT id, agent_id, name, class, hull_points, max_hull_points,
-		        galaxy_id, system_id, planet_id, equipment, created_at
-		 FROM ships WHERE agent_id = $1
-		 ORDER BY created_at ASC LIMIT 1`,
+		`SELECT s.id, s.agent_id, s.name, s.class, s.hull_points, s.max_hull_points,
+		        s.galaxy_id, s.system_id, s.planet_id, s.equipment, s.created_at,
+		        s.cargo_capacity,
+		        COALESCE((SELECT SUM(quantity) FROM inventories WHERE agent_id = s.agent_id), 0) AS cargo_used
+		 FROM ships s WHERE s.agent_id = $1
+		 ORDER BY s.created_at ASC LIMIT 1`,
 		agent.ID,
 	).Scan(
 		&ship.ID, &ship.AgentID, &ship.Name, &ship.Class,
 		&ship.HullPoints, &ship.MaxHullPoints,
 		&ship.GalaxyID, &ship.SystemID, &ship.PlanetID,
 		&ship.Equipment, &ship.CreatedAt,
+		&ship.CargoCapacity, &ship.CargoUsed,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

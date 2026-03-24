@@ -6,7 +6,17 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"gatewanderers/server/internal/mining"
 )
+
+// cargoCapacityForClass returns the base cargo capacity for a ship class.
+func cargoCapacityForClass(class string) int {
+	if cap, ok := mining.CargoCapacityByClass[class]; ok {
+		return cap
+	}
+	return 80 // gate_runner_mk1 default
+}
 
 // upgradeResult is returned from all upgrade/repair/buy-ship actions.
 type upgradeResult struct {
@@ -162,6 +172,14 @@ var shipSpecs = map[string]shipSpec{
 		class: "battlecruiser", name: "Battlecruiser", hp: 1000, cost: 40000,
 		nameEN: "Battlecruiser", nameDE: "Schlachtkreuzer",
 	},
+	"mining_barge": {
+		class: "mining_barge", name: "Mining Barge", hp: 200, cost: 8000,
+		nameEN: "Mining Barge", nameDE: "Minenbarke",
+	},
+	"freighter": {
+		class: "freighter", name: "Freighter", hp: 350, cost: 20000,
+		nameEN: "Freighter", nameDE: "Frachter",
+	},
 }
 
 // processBuyShip purchases a new ship, replacing the current one.
@@ -174,7 +192,7 @@ func processBuyShip(ctx context.Context, pool *pgxpool.Pool, agentID string, par
 
 	spec, ok := shipSpecs[p.Class]
 	if !ok {
-		return upgradeResult{PayloadEN: "Unknown ship class. Available: patrol_craft, destroyer, battlecruiser.", PayloadDE: "Unbekannte Schiffsklasse. Verfügbar: patrol_craft, destroyer, battlecruiser.", EventType: "buy_ship_fail"}
+		return upgradeResult{PayloadEN: "Unknown ship class. Available: patrol_craft, destroyer, battlecruiser, mining_barge, freighter.", PayloadDE: "Unbekannte Schiffsklasse. Verfügbar: patrol_craft, destroyer, battlecruiser, mining_barge, freighter.", EventType: "buy_ship_fail"}
 	}
 
 	// Load current ship and credits.
@@ -198,12 +216,15 @@ func processBuyShip(ctx context.Context, pool *pgxpool.Pool, agentID string, par
 		}
 	}
 
+	// Determine cargo capacity for this ship class.
+	cargo := cargoCapacityForClass(spec.class)
+
 	// Replace old ship with new one at same location.
 	_, _ = pool.Exec(ctx, `DELETE FROM ships WHERE id = $1`, shipID)
 	_, _ = pool.Exec(ctx,
-		`INSERT INTO ships (agent_id, name, class, hull_points, max_hull_points, galaxy_id, system_id)
-		 VALUES ($1, $2, $3, $4, $4, $5, $6)`,
-		agentID, spec.name, spec.class, spec.hp, galaxyID, systemID,
+		`INSERT INTO ships (agent_id, name, class, hull_points, max_hull_points, galaxy_id, system_id, cargo_capacity)
+		 VALUES ($1, $2, $3, $4, $4, $5, $6, $7)`,
+		agentID, spec.name, spec.class, spec.hp, galaxyID, systemID, cargo,
 	)
 	_, _ = pool.Exec(ctx,
 		`UPDATE agents SET credits = credits - $1 WHERE id = $2`, spec.cost, agentID,

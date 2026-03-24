@@ -80,8 +80,8 @@ func doRespawn(ctx context.Context, pool *pgxpool.Pool, h *hub.Hub, agentID, acc
 
 	// Spawn fresh starter ship.
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO ships (agent_id, name, class, hull_points, max_hull_points, galaxy_id, system_id)
-		 VALUES ($1, 'Gate Runner Mk.I', 'gate_runner_mk1', 100, 100, 'milky_way', 'chulak')`,
+		`INSERT INTO ships (agent_id, name, class, hull_points, max_hull_points, galaxy_id, system_id, cargo_capacity)
+		 VALUES ($1, 'Gate Runner Mk.I', 'gate_runner_mk1', 100, 100, 'milky_way', 'chulak', 80)`,
 		agentID,
 	); err != nil {
 		return fmt.Errorf("spawn ship: %w", err)

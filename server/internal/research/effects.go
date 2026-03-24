@@ -149,3 +149,93 @@ func GatherBonus(completed []string) float64 {
 
 	return bonus
 }
+
+// MineBonus returns the additive yield multiplier for the MINE action.
+// resourceType is the specific resource being mined (e.g. "naquadah").
+// A return of 0.25 means +25% yield on top of the base amount.
+func MineBonus(completed []string, resourceType string) float64 {
+	set := make(map[string]bool, len(completed))
+	for _, id := range completed {
+		set[id] = true
+	}
+
+	var bonus float64
+
+	// Universal
+	if set["basic_mining_tech"] {
+		bonus += 0.15
+	}
+
+	// Tau'ri: naquadah/naquadriah specialist
+	if set["naquadah_drill"] && (resourceType == "naquadah" || resourceType == "naquadriah") {
+		bonus += 0.25
+	}
+
+	// Ancient Seeker: ancient_tech specialist
+	if set["ancient_extraction"] && resourceType == "ancient_tech" {
+		bonus += 0.30
+	}
+
+	// Free Jaffa: strip_mining is handled separately (doubles yield AND depletion).
+	// The multiplier effect is applied in mine.go, not here.
+
+	return bonus
+}
+
+// HasStripMining reports whether the agent has researched strip_mining.
+func HasStripMining(completed []string) bool {
+	for _, id := range completed {
+		if id == "strip_mining" {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAutomatedHarvesters reports whether the agent has researched automated_harvesters.
+func HasAutomatedHarvesters(completed []string) bool {
+	for _, id := range completed {
+		if id == "automated_harvesters" {
+			return true
+		}
+	}
+	return false
+}
+
+// HasBioExtraction reports whether the agent has researched bio_extraction.
+func HasBioExtraction(completed []string) bool {
+	for _, id := range completed {
+		if id == "bio_extraction" {
+			return true
+		}
+	}
+	return false
+}
+
+// CargoBonus returns the flat bonus cargo capacity from completed research.
+func CargoBonus(completed []string) int {
+	set := make(map[string]bool, len(completed))
+	for _, id := range completed {
+		set[id] = true
+	}
+
+	var bonus int
+
+	// Gate Nomad: bulk hauler conversion
+	if set["bulk_hauler"] {
+		bonus += 200
+	}
+
+	return bonus
+}
+
+// GeologicalSurveyBonus returns the survey duration multiplier.
+// 1.0 = no bonus, 1.5 = geological_survey tech researched.
+func GeologicalSurveyBonus(completed []string) float64 {
+	for _, id := range completed {
+		if id == "geological_survey" {
+			return 1.5
+		}
+	}
+	return 1.0
+}

@@ -66,6 +66,7 @@ func (s *Server) NewRouter() http.Handler {
 	// Public read endpoints (rate-limited).
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/galaxy/map/{galaxyID}", s.handleGalaxyMap)
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/galaxy/control/{galaxyID}", s.handleGalaxyControl)
+	r.With(rateLimitMiddleware(publicLimiter)).Get("/galaxy/nodes/{systemID}", s.handleGalaxyNodes)
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/events", s.handleWorldEvents)
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/feed", s.handleFeed)
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/market/posts", s.handleMarketPosts)
@@ -134,6 +135,8 @@ func (s *Server) NewRouter() http.Handler {
 		r.Post("/agent/override", s.handleOverride)
 		r.Get("/agent/inventory", s.handleAgentInventory)
 		r.Get("/agent/research", s.handleAgentResearch)
+		r.Get("/agent/surveys", s.handleAgentSurveys)
+		r.Get("/agent/skills", s.handleAgentSkills)
 		r.Get("/agent/reputation", s.handleAgentReputation)
 		r.Get("/market/orders", s.handleMarketOrders)
 		r.Post("/market/trade", s.handleCreateTradeOffer)

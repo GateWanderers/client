@@ -1,0 +1,5 @@
+ALTER TABLE ships DROP COLUMN IF EXISTS cargo_capacity;
+DROP TABLE IF EXISTS skill_boosts;
+DROP TABLE IF EXISTS agent_skills;
+DROP TABLE IF EXISTS surveys;
+DROP TABLE IF EXISTS mining_nodes;

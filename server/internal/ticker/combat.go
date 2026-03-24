@@ -279,6 +279,19 @@ func processAttack(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 			agentID, lootType, lootAmount,
 		)
 
+		// bio_extraction bonus: extra resources from defeated NPC.
+		if research.HasBioExtraction(completedResearch) {
+			bioAmount := 10 + rng.Intn(21) // 10–30 extra
+			_, _ = pool.Exec(ctx,
+				`INSERT INTO inventories (agent_id, resource_type, quantity)
+				 VALUES ($1, $2, $3)
+				 ON CONFLICT (agent_id, resource_type) DO UPDATE
+				   SET quantity = inventories.quantity + EXCLUDED.quantity`,
+				agentID, lootType, bioAmount,
+			)
+			lootAmount += bioAmount
+		}
+
 		// Award XP for combat victory.
 		_, _ = pool.Exec(ctx,
 			`UPDATE agents SET experience = experience + 35 WHERE id = $1`, agentID,

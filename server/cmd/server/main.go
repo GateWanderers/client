@@ -85,6 +85,13 @@ func main() {
 	}
 	slog.Info("system control seeded")
 
+	// Seed mining nodes (idempotent — must run after galaxy seeder).
+	if err := seeder.SeedMiningNodes(ctx); err != nil {
+		slog.Error("galaxy.SeedMiningNodes failed", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("mining nodes seeded")
+
 	// Create the PASETO token maker.
 	tokenMaker, err := auth.NewTokenMaker(cfg.PasetoKey)
 	if err != nil {

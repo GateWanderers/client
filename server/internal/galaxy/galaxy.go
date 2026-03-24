@@ -7,6 +7,8 @@ import (
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"gatewanderers/server/internal/mining"
 )
 
 // Seeder seeds the planets table if it is empty.
@@ -159,6 +161,41 @@ func (s *Seeder) SeedSystemControl(ctx context.Context) error {
 	}
 
 	slog.Info("system_control seeded", "systems", inserted)
+	return nil
+}
+
+// SeedMiningNodes inserts mining_nodes rows for every system that has resources.
+// Idempotent — skips if already seeded.
+func (s *Seeder) SeedMiningNodes(ctx context.Context) error {
+	var count int
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM mining_nodes`).Scan(&count); err != nil {
+		return fmt.Errorf("count mining_nodes: %w", err)
+	}
+	if count > 0 {
+		return nil
+	}
+
+	inserted := 0
+	for systemID, resources := range mining.SystemRichness {
+		for resourceType, richness := range resources {
+			cfg, ok := mining.Configs[richness]
+			if !ok {
+				cfg = mining.Configs[mining.RichnessNormal]
+			}
+			_, err := s.pool.Exec(ctx,
+				`INSERT INTO mining_nodes (system_id, resource_type, richness, current_reserves, max_reserves, regen_per_tick)
+				 VALUES ($1, $2, $3, $4, $4, $5)
+				 ON CONFLICT DO NOTHING`,
+				systemID, resourceType, string(richness), cfg.MaxReserves, cfg.RegenPerTick,
+			)
+			if err != nil {
+				return fmt.Errorf("insert mining_node %s/%s: %w", systemID, resourceType, err)
+			}
+			inserted++
+		}
+	}
+
+	slog.Info("mining nodes seeded", "nodes", inserted)
 	return nil
 }
 
