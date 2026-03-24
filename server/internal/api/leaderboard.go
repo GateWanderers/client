@@ -125,9 +125,58 @@ func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
 		factions = []factionRow{}
 	}
 
+	// Clan ranking: sum members' credits + XP, top 20 clans.
+	type clanRankRow struct {
+		ClanID       string `json:"clan_id"`
+		Name         string `json:"name"`
+		Tag          string `json:"tag"`
+		LeaderName   string `json:"leader_name"`
+		MemberCount  int64  `json:"member_count"`
+		TotalCredits int64  `json:"total_credits"`
+		TotalXP      int64  `json:"total_xp"`
+		Power        int64  `json:"power"`
+	}
+
+	clanRankRows, err := pool.Query(ctx,
+		`SELECT c.id, c.name, c.tag,
+		        la.name AS leader_name,
+		        COUNT(cm.agent_id) AS member_count,
+		        COALESCE(SUM(a.credits), 0)    AS total_credits,
+		        COALESCE(SUM(a.experience), 0) AS total_xp
+		 FROM clans c
+		 JOIN agents la ON la.id = c.leader_agent_id
+		 JOIN clan_members cm ON cm.clan_id = c.id
+		 JOIN agents a ON a.id = cm.agent_id
+		 WHERE a.banned_at IS NULL
+		 GROUP BY c.id, c.name, c.tag, la.name
+		 ORDER BY COALESCE(SUM(a.credits), 0) + COALESCE(SUM(a.experience), 0) * 10 DESC
+		 LIMIT 20`,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "clan leaderboard query failed")
+		return
+	}
+	defer clanRankRows.Close()
+
+	var clans []clanRankRow
+	for clanRankRows.Next() {
+		var c clanRankRow
+		if err := clanRankRows.Scan(&c.ClanID, &c.Name, &c.Tag, &c.LeaderName,
+			&c.MemberCount, &c.TotalCredits, &c.TotalXP); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan error")
+			return
+		}
+		c.Power = c.TotalCredits + c.TotalXP*10
+		clans = append(clans, c)
+	}
+	if clans == nil {
+		clans = []clanRankRow{}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"top_credits": topCredits,
 		"top_xp":      topXP,
 		"factions":    factions,
+		"clans":       clans,
 	})
 }

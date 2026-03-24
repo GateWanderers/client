@@ -39,10 +39,30 @@ func (s *Server) handleAgentState(w http.ResponseWriter, r *http.Request) {
 	_ = json.Unmarshal(agent.Research, &completedResearch)
 	weaponBonus, shieldBonus := research.CombatBonuses(completedResearch)
 
+	// Fetch clan info if the agent is a member.
+	var clanInfo *registry.ClanInfo
+	var clanID, clanName, clanTag, clanRole string
+	err = s.registry.Pool().QueryRow(r.Context(),
+		`SELECT c.id, c.name, c.tag, cm.role
+		 FROM clan_members cm
+		 JOIN clans c ON c.id = cm.clan_id
+		 WHERE cm.agent_id = $1`,
+		agent.ID,
+	).Scan(&clanID, &clanName, &clanTag, &clanRole)
+	if err == nil {
+		clanInfo = &registry.ClanInfo{
+			ID:   clanID,
+			Name: clanName,
+			Tag:  clanTag,
+			Role: clanRole,
+		}
+	}
+
 	writeJSON(w, http.StatusOK, registry.AgentState{
 		Agent:     agent,
 		Ship:      ship,
 		Alliances: alliances,
+		Clan:      clanInfo,
 		ResearchBonuses: registry.ResearchBonuses{
 			WeaponBonus: weaponBonus,
 			ShieldBonus: shieldBonus,

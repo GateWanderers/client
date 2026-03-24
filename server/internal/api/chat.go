@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -43,10 +44,17 @@ func (s *Server) handleGetChat(w http.ResponseWriter, r *http.Request) {
 	if channel != "global" {
 		accountID := accountIDFromContext(ctx)
 		if accountID == "" {
-			writeError(w, http.StatusUnauthorized, "faction chat requires authentication")
+			writeError(w, http.StatusUnauthorized, "faction/clan chat requires authentication")
 			return
 		}
-		if !s.agentInFaction(ctx, accountID, channel) {
+		if strings.HasPrefix(channel, "clan:") {
+			clanID := strings.TrimPrefix(channel, "clan:")
+			agentID, ok := s.agentIDForAccount(r, accountID)
+			if !ok || s.clanIDForAgent(r, agentID) != clanID {
+				writeError(w, http.StatusForbidden, "you are not a member of this clan")
+				return
+			}
+		} else if !s.agentInFaction(ctx, accountID, channel) {
 			writeError(w, http.StatusForbidden, "you are not a member of this faction")
 			return
 		}
@@ -126,9 +134,17 @@ func (s *Server) handlePostChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if channel != "global" && agentFaction != channel {
-		writeError(w, http.StatusForbidden, "you are not a member of this faction")
-		return
+	if channel != "global" {
+		if strings.HasPrefix(channel, "clan:") {
+			clanID := strings.TrimPrefix(channel, "clan:")
+			if s.clanIDForAgent(r, agentID) != clanID {
+				writeError(w, http.StatusForbidden, "you are not a member of this clan")
+				return
+			}
+		} else if agentFaction != channel {
+			writeError(w, http.StatusForbidden, "you are not a member of this faction")
+			return
+		}
 	}
 
 	var body struct {
@@ -169,6 +185,9 @@ func (s *Server) handlePostChat(w http.ResponseWriter, r *http.Request) {
 
 	if channel == "global" {
 		s.hub.Broadcast(wsMsg)
+	} else if strings.HasPrefix(channel, "clan:") {
+		clanID := strings.TrimPrefix(channel, "clan:")
+		s.broadcastToClan(ctx, clanID, wsMsg)
 	} else {
 		s.broadcastToFaction(ctx, channel, wsMsg)
 	}
@@ -333,7 +352,7 @@ func (s *Server) handleReportMessage(w http.ResponseWriter, r *http.Request) {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func isValidChannel(ch string) bool {
-	return ch == "global" || validFactions[ch]
+	return ch == "global" || validFactions[ch] || strings.HasPrefix(ch, "clan:")
 }
 
 // agentInFaction checks whether the given account's agent belongs to faction.
@@ -343,6 +362,26 @@ func (s *Server) agentInFaction(ctx context.Context, accountID, faction string) 
 		`SELECT faction FROM agents WHERE account_id = $1`, accountID,
 	).Scan(&f)
 	return err == nil && f == faction
+}
+
+// broadcastToClan sends a hub message to all accounts whose agents are in the clan.
+func (s *Server) broadcastToClan(ctx context.Context, clanID string, msg hub.Message) {
+	rows, err := s.registry.Pool().Query(ctx,
+		`SELECT a.account_id FROM agents a
+		 JOIN clan_members cm ON cm.agent_id = a.id
+		 WHERE cm.clan_id = $1`, clanID,
+	)
+	if err != nil {
+		slog.Error("chat: broadcastToClan query", "err", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var accountID string
+		if err := rows.Scan(&accountID); err == nil {
+			s.hub.SendToAgent(accountID, msg)
+		}
+	}
 }
 
 // broadcastToFaction sends a hub message to all accounts whose agents are in faction.

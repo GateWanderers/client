@@ -63,10 +63,19 @@ type ResearchBonuses struct {
 	TradeBonus  float64 `json:"trade_bonus"`
 }
 
+// ClanInfo holds basic clan info attached to the agent state.
+type ClanInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Tag  string `json:"tag"`
+	Role string `json:"role"`
+}
+
 // AgentState is the combined agent + ship + alliances response payload.
 type AgentState struct {
 	Agent           *Agent          `json:"agent"`
 	Ship            *Ship           `json:"ship"`
 	Alliances       []Alliance      `json:"alliances"`
 	ResearchBonuses ResearchBonuses `json:"research_bonuses"`
+	Clan            *ClanInfo       `json:"clan"` // nil if not in a clan
 }
