@@ -296,6 +296,128 @@
     }
     #ws-dot.connected    { background: var(--success); }
     #ws-dot.reconnecting { background: var(--warn); }
+
+    /* ── CLAN TAB ── */
+    #clan-no-clan, #clan-has-clan { display: none; flex-direction: column; gap: 0.5rem; }
+    #clan-no-clan.active, #clan-has-clan.active { display: flex; }
+
+    .clan-header-tag {
+      font-size: 1.1rem; font-weight: 700; color: var(--accent-hi);
+      letter-spacing: 0.05em;
+    }
+    .clan-header-meta { font-size: 0.78rem; color: var(--muted); }
+
+    .clan-table {
+      width: 100%; border-collapse: collapse; font-size: 0.75rem;
+    }
+    .clan-table th {
+      text-align: left; color: var(--muted); font-weight: 600;
+      border-bottom: 1px solid var(--border); padding: 0.2rem 0.3rem;
+      text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.68rem;
+    }
+    .clan-table td {
+      padding: 0.25rem 0.3rem; border-bottom: 1px solid rgba(30,40,64,0.4);
+      color: var(--text);
+    }
+    .clan-table td:last-child { color: var(--muted); }
+
+    #clan-chat-log {
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+      gap: 0.3rem; font-size: 0.78rem; min-height: 80px; max-height: 160px;
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 0.4rem; background: #0a0c14;
+    }
+
+    #clan-chat-input-row {
+      display: flex; gap: 0.4rem; flex-shrink: 0;
+    }
+    #clan-chat-input {
+      flex: 1; font-size: 0.8rem; padding: 0.3rem 0.5rem;
+    }
+    #clan-chat-send-btn { flex-shrink: 0; font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+
+    #clan-invite-row { display: none; gap: 0.4rem; align-items: center; }
+    #clan-invite-row.visible { display: flex; }
+    #clan-invite-input { flex: 1; font-size: 0.8rem; }
+
+    /* ── MOBILE RESPONSIVE ── */
+    @media (max-width: 768px) {
+      body { font-size: 15px; }
+
+      #topbar { padding: 0.4rem 0.6rem; gap: 0.5rem; }
+      #topbar h1 { font-size: 0.85rem; }
+
+      /* Sidebar as slide-up overlay on mobile */
+      #sidebar {
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        width: 100%;
+        height: 60vh;
+        z-index: 50;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        border-radius: 12px 12px 0 0;
+        transform: translateY(calc(100% - 36px));
+        transition: transform 0.3s ease;
+        overflow: hidden;
+      }
+      #sidebar.mobile-open {
+        transform: translateY(0);
+      }
+
+      /* Drag handle for sidebar */
+      #sidebar-handle {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 36px;
+        flex-shrink: 0;
+        cursor: pointer;
+        background: #080b12;
+        border-bottom: 1px solid var(--border);
+        user-select: none;
+      }
+      #sidebar-handle::before {
+        content: '';
+        width: 36px; height: 4px;
+        background: var(--border);
+        border-radius: 2px;
+      }
+
+      /* Make tabs scrollable on mobile */
+      #sidebar-tabs {
+        overflow-x: auto;
+        flex-shrink: 0;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      #sidebar-tabs::-webkit-scrollbar { display: none; }
+      .tab-btn { flex: none; padding: 0.5rem 0.6rem; font-size: 0.72rem; white-space: nowrap; }
+
+      /* Map takes full width */
+      #map-wrap { width: 100%; }
+
+      /* Feed panel shorter on mobile */
+      #feed-panel { height: 100px; }
+      #feed-panel.collapsed { height: 24px; }
+
+      /* Detail overlay full-width on mobile */
+      #detail-overlay { left: 0.4rem; right: 0.4rem; max-width: none; top: 0.4rem; }
+
+      /* Chat input above keyboard */
+      #chat-input-row { padding-bottom: env(safe-area-inset-bottom, 0); }
+      #clan-chat-input-row { padding-bottom: env(safe-area-inset-bottom, 0); }
+
+      /* Auth panel sizing */
+      #auth-panel { padding: 1.2rem; }
+      #auth-panel input, #auth-panel button { font-size: 1rem; padding: 0.55rem 0.7rem; }
+
+      /* Legend hidden on mobile to save space */
+      #legend { display: none; }
+    }
+
+    /* Hide sidebar handle on desktop */
+    #sidebar-handle { display: none; }
   </style>
 </head>
 <body>
@@ -387,6 +509,8 @@
 
   <!-- SIDEBAR -->
   <div id="sidebar">
+    <!-- MOBILE DRAG HANDLE -->
+    <div id="sidebar-handle" aria-label="Toggle sidebar"></div>
     <!-- AUTH PANEL -->
     <div id="auth-panel">
       <h2 id="auth-title">Login</h2>
@@ -403,6 +527,7 @@
         <button class="tab-btn"        data-tab="tab-inv">Inv</button>
         <button class="tab-btn"        data-tab="tab-mission">Mission</button>
         <button class="tab-btn"        data-tab="tab-chat">Chat</button>
+        <button class="tab-btn"        data-tab="tab-clan">Clan</button>
         <button class="tab-btn"        data-tab="tab-bounty">Bounty</button>
         <button class="tab-btn"        data-tab="tab-leaderboard">⭐</button>
       </div>
@@ -489,8 +614,60 @@
         <div class="section-label" style="margin-top:0.5rem;">Faction Power</div>
         <div id="lb-factions" style="font-size:0.75rem;color:var(--muted)">—</div>
       </div>
+
+      <!-- CLAN TAB -->
+      <div class="tab-panel" id="tab-clan" style="flex-direction:column;gap:0.5rem;overflow-y:auto;">
+        <!-- No-clan view -->
+        <div id="clan-no-clan">
+          <div class="section-label">No Clan</div>
+          <p style="font-size:0.78rem;color:var(--muted)">You are not a member of any clan. Found one below.</p>
+          <div class="section-label">Found a Clan</div>
+          <input type="text" id="clan-form-name" placeholder="Clan Name" style="width:100%" />
+          <div style="display:flex;gap:0.4rem;">
+            <input type="text" id="clan-form-tag" placeholder="TAG (max 5)" maxlength="5" style="width:80px;text-transform:uppercase" />
+          </div>
+          <textarea id="clan-form-desc" placeholder="Description (optional)" rows="2" style="width:100%;resize:vertical;font-family:inherit;font-size:0.82rem;background:#161a26;color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.3rem 0.5rem;"></textarea>
+          <button class="btn-primary" id="clan-create-btn">Clan gründen</button>
+          <div id="clan-form-error" style="color:#e06060;font-size:0.78rem;min-height:1rem;"></div>
+        </div>
+
+        <!-- Has-clan view -->
+        <div id="clan-has-clan">
+          <div id="clan-header-tag" class="clan-header-tag">—</div>
+          <div class="clan-header-meta">
+            <span>Leader: </span><span id="clan-leader-name" style="color:var(--text)">—</span>
+            <span> &middot; </span>
+            <span id="clan-member-count" style="color:var(--text)">0</span><span> members</span>
+          </div>
+          <div class="section-label">Members</div>
+          <div style="overflow-x:auto;">
+            <table class="clan-table">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Faction</th><th>Role</th><th>Joined</th>
+                </tr>
+              </thead>
+              <tbody id="clan-members-tbody"></tbody>
+            </table>
+          </div>
+          <div class="section-label">Clan Chat</div>
+          <div id="clan-chat-log" aria-live="polite" aria-label="Clan chat messages"></div>
+          <div id="clan-chat-input-row">
+            <input type="text" id="clan-chat-input" placeholder="Message…" maxlength="500" />
+            <button class="btn-primary" id="clan-chat-send-btn">&rarr;</button>
+          </div>
+          <div id="clan-invite-row">
+            <input type="text" id="clan-invite-input" placeholder="Agent name or ID" />
+            <button class="btn-primary" id="clan-invite-btn">Invite</button>
+          </div>
+          <button class="btn-warn" id="clan-leave-btn">Clan verlassen</button>
+          <button class="btn-danger" id="clan-disband-btn" style="display:none">Clan auflösen</button>
+          <div id="clan-action-error" style="color:#e06060;font-size:0.78rem;min-height:1rem;"></div>
+        </div>
+      </div>
     </div>
   </div>
+
 
 </div><!-- /main -->
 
@@ -1107,6 +1284,10 @@ function connectWS() {
       if (chatMsg.channel === chat.channel) {
         appendChatMessage(chatMsg, true);
       }
+      // Clan chat: forward to clan log if channel matches
+      if (clan.id && chatMsg.channel === 'clan:' + clan.id) {
+        appendClanChatMessage(chatMsg, true);
+      }
     } else if (msg.type === 'feed' && msg.event) {
       const feedMsg = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
       prependFeedEntry(feedMsg, true);
@@ -1258,6 +1439,7 @@ function initTabs() {
       if (btn.dataset.tab === 'tab-chat')         loadChatHistory(chat.channel);
       if (btn.dataset.tab === 'tab-leaderboard')  loadLeaderboard();
       if (btn.dataset.tab === 'tab-bounty')       loadBounties();
+      if (btn.dataset.tab === 'tab-clan')         loadClan();
     });
   });
 }
@@ -1665,11 +1847,345 @@ async function loadGalacticEvents() {
   bannerText.textContent = '⚡ ACTIVE: ' + titles.join(' · ');
 }
 
+/* ═══════════════════════ CLAN ═══════════════════════ */
+const clan = {
+  id:   null,
+  role: null, // 'leader' | 'officer' | 'member'
+};
+
+function showClanView(hasClan) {
+  const noEl  = document.getElementById('clan-no-clan');
+  const hasEl = document.getElementById('clan-has-clan');
+  noEl.classList.toggle('active',  !hasClan);
+  hasEl.classList.toggle('active',  hasClan);
+}
+
+function renderClanData(data) {
+  // data = { clan: {...}, members: [...], my_role: '...' }
+  const c = data.clan;
+  clan.id   = c.id;
+  clan.role  = data.my_role || 'member';
+
+  // Header
+  const tagEl = document.getElementById('clan-header-tag');
+  tagEl.textContent = '[' + c.tag + '] ' + c.name; // safe — textContent
+
+  const leaderEl = document.getElementById('clan-leader-name');
+  leaderEl.textContent = c.leader_name || '—';
+
+  const countEl = document.getElementById('clan-member-count');
+  countEl.textContent = String((data.members || []).length);
+
+  // Members table
+  const tbody = document.getElementById('clan-members-tbody');
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  for (const m of (data.members || [])) {
+    const tr = document.createElement('tr');
+    const cells = [
+      m.agent_name,
+      (m.faction || '').replace(/_/g, ' '),
+      m.role,
+      m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—',
+    ];
+    for (const cell of cells) {
+      const td = document.createElement('td');
+      td.textContent = cell; // safe — textContent
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+
+  // Role-restricted controls
+  const isLeader  = clan.role === 'leader';
+  const isOfficer = clan.role === 'officer' || isLeader;
+  document.getElementById('clan-disband-btn').style.display = isLeader  ? '' : 'none';
+  const invRow = document.getElementById('clan-invite-row');
+  invRow.classList.toggle('visible', isOfficer);
+
+  // Load clan chat history
+  loadClanChatHistory();
+  showClanView(true);
+}
+
+async function loadClan() {
+  if (!state.token) { showClanView(false); return; }
+  try {
+    const resp = await fetch('/clan/mine', { headers: authHeaders() });
+    if (resp.status === 404) {
+      clan.id = null; clan.role = null;
+      showClanView(false);
+      return;
+    }
+    if (!resp.ok) { showClanView(false); return; }
+    const data = await resp.json();
+    renderClanData(data);
+  } catch (_) { showClanView(false); }
+}
+
+async function createClan() {
+  const nameVal = document.getElementById('clan-form-name').value.trim();
+  const tagVal  = document.getElementById('clan-form-tag').value.trim().toUpperCase();
+  const descVal = document.getElementById('clan-form-desc').value.trim();
+  const errEl   = document.getElementById('clan-form-error');
+  errEl.textContent = '';
+
+  if (!nameVal)           { errEl.textContent = 'Name is required.'; return; }
+  if (!tagVal || tagVal.length > 5) { errEl.textContent = 'Tag must be 1–5 characters.'; return; }
+
+  try {
+    const body = { name: nameVal, tag: tagVal };
+    if (descVal) body.description = descVal;
+    const resp = await fetch('/clan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    const d = await resp.json();
+    if (!resp.ok) { errEl.textContent = d.error || 'Failed to create clan.'; return; }
+    // Clear form
+    document.getElementById('clan-form-name').value = '';
+    document.getElementById('clan-form-tag').value  = '';
+    document.getElementById('clan-form-desc').value = '';
+    renderClanData(d);
+  } catch (_) { errEl.textContent = 'Network error.'; }
+}
+
+async function leaveClan() {
+  if (!clan.id) return;
+  if (!confirm('Really leave the clan?')) return;
+  const errEl = document.getElementById('clan-action-error');
+  errEl.textContent = '';
+  try {
+    const resp = await fetch('/clan/' + encodeURIComponent(clan.id) + '/leave', {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (resp.ok) {
+      clan.id = null; clan.role = null;
+      showClanView(false);
+    } else {
+      const d = await resp.json();
+      errEl.textContent = d.error || 'Failed to leave clan.';
+    }
+  } catch (_) { errEl.textContent = 'Network error.'; }
+}
+
+async function disbandClan() {
+  if (!clan.id) return;
+  if (!confirm('Permanently disband this clan? This cannot be undone.')) return;
+  const errEl = document.getElementById('clan-action-error');
+  errEl.textContent = '';
+  try {
+    const resp = await fetch('/clan/' + encodeURIComponent(clan.id), {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (resp.ok) {
+      clan.id = null; clan.role = null;
+      showClanView(false);
+    } else {
+      const d = await resp.json();
+      errEl.textContent = d.error || 'Failed to disband clan.';
+    }
+  } catch (_) { errEl.textContent = 'Network error.'; }
+}
+
+async function inviteToClan() {
+  if (!clan.id) return;
+  const input = document.getElementById('clan-invite-input');
+  const agentRef = input.value.trim();
+  if (!agentRef) return;
+  const errEl = document.getElementById('clan-action-error');
+  errEl.textContent = '';
+  try {
+    const resp = await fetch('/clan/' + encodeURIComponent(clan.id) + '/invite', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ agent: agentRef }),
+    });
+    const d = await resp.json();
+    if (resp.ok) {
+      input.value = '';
+      alert('Invitation sent.');
+    } else {
+      errEl.textContent = d.error || 'Failed to send invitation.';
+    }
+  } catch (_) { errEl.textContent = 'Network error.'; }
+}
+
+async function loadClanChatHistory() {
+  if (!clan.id) return;
+  try {
+    const channel = 'clan:' + clan.id;
+    const resp = await fetch('/chat/' + encodeURIComponent(channel) + '?limit=50', { headers: authHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const log = document.getElementById('clan-chat-log');
+    while (log.firstChild) log.removeChild(log.firstChild);
+    for (const m of (data.messages || [])) {
+      appendClanChatMessage(m, false);
+    }
+    log.scrollTop = log.scrollHeight;
+  } catch (_) {}
+}
+
+function appendClanChatMessage(msg, scroll) {
+  const log = document.getElementById('clan-chat-log');
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+
+  const sender = document.createElement('span');
+  sender.className = 'chat-sender';
+  sender.textContent = msg.sender_name; // safe — textContent
+
+  const ts = document.createElement('span');
+  ts.className = 'chat-ts';
+  ts.textContent = fmtChatTime(msg.created_at);
+
+  const body = document.createElement('div');
+  body.className = 'chat-body';
+  body.textContent = msg.content; // safe — textContent
+
+  div.appendChild(sender);
+  div.appendChild(ts);
+  div.appendChild(body);
+  log.appendChild(div);
+
+  if (scroll) log.scrollTop = log.scrollHeight;
+}
+
+async function sendClanChatMessage() {
+  if (!state.token || !clan.id) return;
+  const input = document.getElementById('clan-chat-input');
+  const content = input.value.trim();
+  if (!content) return;
+  const channel = 'clan:' + clan.id;
+  try {
+    const resp = await fetch('/chat/' + encodeURIComponent(channel), {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ content }),
+    });
+    if (resp.ok) {
+      input.value = '';
+    } else {
+      const d = await resp.json();
+      alert(d.error || 'Failed to send message');
+    }
+  } catch (_) { alert('Network error'); }
+}
+
+function initClan() {
+  document.getElementById('clan-create-btn').addEventListener('click', createClan);
+  document.getElementById('clan-leave-btn').addEventListener('click', leaveClan);
+  document.getElementById('clan-disband-btn').addEventListener('click', disbandClan);
+  document.getElementById('clan-invite-btn').addEventListener('click', inviteToClan);
+  document.getElementById('clan-chat-send-btn').addEventListener('click', sendClanChatMessage);
+  document.getElementById('clan-chat-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendClanChatMessage(); }
+  });
+  // Uppercase tag input live
+  document.getElementById('clan-form-tag').addEventListener('input', function() {
+    this.value = this.value.toUpperCase();
+  });
+}
+
+/* ═══════════════════════ MOBILE ═══════════════════════ */
+function initMobile() {
+  // Sidebar slide-up handle
+  const handle  = document.getElementById('sidebar-handle');
+  const sidebar = document.getElementById('sidebar');
+
+  handle.addEventListener('click', function() {
+    sidebar.classList.toggle('mobile-open');
+  });
+
+  // Close sidebar when a tab is selected on mobile
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      if (window.innerWidth <= 768) {
+        sidebar.classList.add('mobile-open');
+      }
+    });
+  });
+
+  // Pinch-to-zoom on SVG map
+  const mapSvg = document.getElementById('map-svg');
+  let svgScale    = 1;
+  let svgOriginX  = 0;
+  let svgOriginY  = 0;
+  let lastDist    = null;
+
+  function touchDist(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function touchMid(touches, rect) {
+    return {
+      x: ((touches[0].clientX + touches[1].clientX) / 2) - rect.left,
+      y: ((touches[0].clientY + touches[1].clientY) / 2) - rect.top,
+    };
+  }
+
+  mapSvg.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      lastDist = touchDist(e.touches);
+    }
+  }, { passive: false });
+
+  mapSvg.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 2 && lastDist !== null) {
+      e.preventDefault();
+      const newDist = touchDist(e.touches);
+      const ratio   = newDist / lastDist;
+      svgScale      = Math.max(0.4, Math.min(svgScale * ratio, 6));
+      lastDist      = newDist;
+
+      const rect = mapSvg.getBoundingClientRect();
+      const mid  = touchMid(e.touches, rect);
+
+      // Apply transform to all layers via a wrapper group
+      applyMapZoom(svgScale, mid.x, mid.y, rect);
+    }
+  }, { passive: false });
+
+  mapSvg.addEventListener('touchend', function(e) {
+    if (e.touches.length < 2) lastDist = null;
+  });
+}
+
+// Keep a persistent zoom group wrapping all map layers
+let _mapZoomGroup = null;
+function ensureMapZoomGroup() {
+  if (_mapZoomGroup) return _mapZoomGroup;
+  const svg = document.getElementById('map-svg');
+  const g   = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.id = 'map-zoom-group';
+  // Move existing children into the group
+  while (svg.firstChild) g.appendChild(svg.firstChild);
+  svg.appendChild(g);
+  _mapZoomGroup = g;
+  return g;
+}
+
+function applyMapZoom(scale, cx, cy, rect) {
+  const g = ensureMapZoomGroup();
+  // Translate so the pinch center stays fixed
+  const tx = cx - cx * scale;
+  const ty = cy - cy * scale;
+  g.setAttribute('transform', 'translate(' + tx + ',' + ty + ') scale(' + scale + ')');
+}
+
 /* ═══════════════════════ INIT ═══════════════════════ */
 function init() {
   applyI18n();
   initTabs();
   initChat();
+  initClan();
+  initMobile();
 
   document.getElementById('galaxy-select').addEventListener('change', function(e) {
     state.galaxy = e.target.value;

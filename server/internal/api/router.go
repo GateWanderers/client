@@ -75,6 +75,7 @@ func (s *Server) NewRouter() http.Handler {
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/clan/{clanID}",  s.handleGetClan)
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/bounties",       s.handleGetBounties)
 	r.With(rateLimitMiddleware(publicLimiter)).Get("/galactic-events", s.handleGetGalacticEvents)
+	r.With(rateLimitMiddleware(publicLimiter)).Get("/market/auctions", s.handleGetAuctions)
 
 	// Public health check — no auth, no rate limit.
 	r.Get("/health", s.handleHealth)
@@ -140,6 +141,12 @@ func (s *Server) NewRouter() http.Handler {
 		// Bounties — write actions require auth.
 		r.Post("/bounties",                s.handlePlaceBounty)
 		r.Delete("/bounties/{bountyID}",   s.handleRetractBounty)
+
+		// Auctions — write actions require auth.
+		r.Post("/market/auction", s.handleCreateAuction)
+		r.Post("/market/auction/{auctionID}/bid", s.handleBidAuction)
+		r.Post("/market/auction/{auctionID}/buyout", s.handleBuyoutAuction)
+		r.Delete("/market/auction/{auctionID}", s.handleCancelAuction)
 
 		// Chat — authenticated actions.
 		r.Post("/chat/{channel}", s.handlePostChat)

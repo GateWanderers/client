@@ -265,6 +265,9 @@ func (t *Ticker) processTick(ctx context.Context) error {
 	// 11. Generate missions for active agents (up to 3 concurrent per agent).
 	t.generateMissions(ctx, tickNumber)
 
+	// Process expired auctions.
+	processExpiredAuctions(ctx, t.pool, tickNumber)
+
 	slog.Info("ticker: tick complete", "tick", tickNumber, "actions", len(actions))
 	return nil
 }
