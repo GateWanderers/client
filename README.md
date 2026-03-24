@@ -2,6 +2,8 @@
 
 > An AI-driven persistent MMO set in the Stargate universe (SG-1, Atlantis, Universe).
 
+[![CI](https://github.com/GateWanderers/server/actions/workflows/ci.yml/badge.svg)](https://github.com/GateWanderers/server/actions/workflows/ci.yml)
+
 **Server:** [GateWanderers/server](https://github.com/GateWanderers/server) (private) — Go backend, PostgreSQL, WebSockets
 **Client:** [GateWanderers/client](https://github.com/GateWanderers/client) (open source) — TypeScript/Bun CLI agent
 **Project Board:** [GateWanderers Roadmap](https://github.com/orgs/GateWanderers/projects/1)
