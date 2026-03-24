@@ -421,6 +421,29 @@
       #lang-toggle { margin-left: auto; }
     }
 
+    /* ── RESEARCH TREE ── */
+    .research-section-label {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); padding: 0.3rem 0 0.15rem;
+      border-bottom: 1px solid var(--border); margin-bottom: 0.3rem;
+    }
+    .rc {
+      background: #10141f; border: 1px solid var(--border); border-radius: 5px;
+      padding: 0.4rem 0.5rem; display: flex; flex-direction: column; gap: 0.15rem;
+      font-size: 0.75rem;
+    }
+    .rc.available { border-color: #2a4060; cursor: pointer; }
+    .rc.available:hover { border-color: var(--accent); background: #131825; }
+    .rc.completed { opacity: 0.65; }
+    .rc.locked    { opacity: 0.35; }
+    .rc.in-progress { border-color: var(--warn); }
+    .rc-name     { font-weight: 600; color: var(--accent-hi); }
+    .rc-effects  { color: #50c080; font-size: 0.7rem; }
+    .rc-meta     { color: var(--muted); font-size: 0.68rem; }
+    .rc-prereqs  { color: var(--warn); font-size: 0.68rem; }
+    .rc-bar      { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 0.1rem; }
+    .rc-bar-fill { height: 100%; background: var(--warn); border-radius: 2px; transition: width 0.4s; }
+
     /* ── CAPTURE ANIMATIONS ── */
     @keyframes ring-capture-player {
       0%   { stroke-width: 10; opacity: 0.6; }
@@ -550,6 +573,7 @@
         <button class="tab-btn active" data-tab="tab-agent">Agent</button>
         <button class="tab-btn"        data-tab="tab-inv">Inv</button>
         <button class="tab-btn"        data-tab="tab-mission">Mission</button>
+        <button class="tab-btn"        data-tab="tab-research">R&amp;D</button>
         <button class="tab-btn"        data-tab="tab-chat">Chat</button>
         <button class="tab-btn"        data-tab="tab-clan">Clan</button>
         <button class="tab-btn"        data-tab="tab-bounty">Bounty</button>
@@ -619,6 +643,15 @@
           <button class="btn-primary" id="chat-send-btn" id="lbl-send">&rarr;</button>
         </div>
       </div>
+      <!-- RESEARCH TAB -->
+      <div class="tab-panel" id="tab-research" style="flex-direction:column;gap:0;overflow-y:auto;">
+        <div id="research-inprogress-wrap"></div>
+        <div id="research-available-wrap"></div>
+        <div id="research-completed-wrap"></div>
+        <div id="research-locked-wrap"></div>
+        <div id="research-empty" style="color:var(--muted);font-size:0.78rem;display:none;">Login to view research.</div>
+      </div>
+
       <!-- BOUNTY TAB -->
       <div class="tab-panel" id="tab-bounty" style="flex-direction:column;gap:0.4rem;">
         <div class="section-label">Active Bounties</div>
@@ -1318,6 +1351,8 @@ function connectWS() {
         fetchInventory();
         const mTab = document.getElementById('tab-mission');
         if (mTab && mTab.classList.contains('active')) loadMissions();
+        const rTab = document.getElementById('tab-research');
+        if (rTab && rTab.classList.contains('active')) loadResearch();
       }
     } else if (msg.type === 'chat' && msg.event) {
       const chatMsg = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
@@ -1430,6 +1465,247 @@ async function loadMissions() {
   }
 }
 
+/* ═══════════════════════ RESEARCH ═══════════════════════ */
+async function loadResearch() {
+  if (!state.token) {
+    document.getElementById('research-empty').style.display = 'block';
+    return;
+  }
+  document.getElementById('research-empty').style.display = 'none';
+
+  try {
+    const [stateResp, treeResp] = await Promise.all([
+      fetch('/agent/research',  { headers: authHeaders() }),
+      fetch('/research/tree'),
+    ]);
+    if (!stateResp.ok) return;
+    const rs   = await stateResp.json();
+    const tree = treeResp.ok ? await treeResp.json() : [];
+
+    const completed   = new Set(rs.completed  || []);
+    const inProgress  = rs.in_progress;
+    const available   = rs.available   || [];
+    const availableIDs = new Set(available.map(function(t) { return t.id; }));
+
+    // Build locked list: faction-compatible techs not in completed/available/in_progress
+    const agentFaction = document.getElementById('val-faction')
+      ? document.getElementById('val-faction').textContent.replace(/ /g, '_') : '';
+    const locked = (tree || []).filter(function(t) {
+      if (completed.has(t.id)) return false;
+      if (availableIDs.has(t.id)) return false;
+      if (inProgress && t.id === inProgress.tech_id) return false;
+      if (t.faction !== 'all' && t.faction !== agentFaction) return false;
+      return true;
+    });
+
+    renderResearchInProgress(inProgress);
+    renderResearchAvailable(available, !!inProgress);
+    renderResearchCompleted(Array.from(completed), tree);
+    renderResearchLocked(locked);
+  } catch (_) {}
+}
+
+function renderResearchInProgress(ip) {
+  const wrap = document.getElementById('research-inprogress-wrap');
+  while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+  if (!ip) return;
+
+  const label = document.createElement('div');
+  label.className = 'research-section-label';
+  label.textContent = 'In Progress';
+  wrap.appendChild(label);
+
+  const card = document.createElement('div');
+  card.className = 'rc in-progress';
+
+  const name = document.createElement('div');
+  name.className = 'rc-name';
+  name.textContent = '\uD83D\uDD2C ' + ip.tech_name; // 🔬
+
+  const pct = ip.completes_at_tick > ip.started_at_tick
+    ? Math.min(100, Math.round(((ip.current_tick - ip.started_at_tick) / (ip.completes_at_tick - ip.started_at_tick)) * 100))
+    : 100;
+
+  const meta = document.createElement('div');
+  meta.className = 'rc-meta';
+  meta.textContent = ip.ticks_remaining > 0 ? ip.ticks_remaining + ' ticks remaining' : 'completing next tick…';
+
+  const bar = document.createElement('div');
+  bar.className = 'rc-bar';
+  const fill = document.createElement('div');
+  fill.className = 'rc-bar-fill';
+  fill.style.width = pct + '%';
+  bar.appendChild(fill);
+
+  card.appendChild(name);
+  card.appendChild(meta);
+  card.appendChild(bar);
+  wrap.appendChild(card);
+}
+
+function renderResearchAvailable(techs, hasInProgress) {
+  const wrap = document.getElementById('research-available-wrap');
+  while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+  if (!techs || techs.length === 0) return;
+
+  const label = document.createElement('div');
+  label.className = 'research-section-label';
+  label.textContent = 'Available';
+  wrap.appendChild(label);
+
+  techs.forEach(function(t) {
+    const card = document.createElement('div');
+    card.className = 'rc available';
+    if (!hasInProgress) {
+      card.addEventListener('click', function() { queueResearch(t.id, t.name || t.id); });
+    } else {
+      card.style.opacity = '0.5';
+      card.style.cursor  = 'default';
+      card.title = 'Cancel current research first.';
+    }
+
+    const nameRow = document.createElement('div');
+    nameRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+
+    const name = document.createElement('span');
+    name.className = 'rc-name';
+    name.textContent = t.name || t.id;
+
+    const queueBtn = document.createElement('button');
+    queueBtn.className = 'btn-primary';
+    queueBtn.style.cssText = 'font-size:0.65rem;padding:0.1rem 0.35rem;';
+    queueBtn.textContent = 'Queue';
+    if (hasInProgress) { queueBtn.disabled = true; }
+    else {
+      queueBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        queueResearch(t.id, t.name || t.id);
+      });
+    }
+
+    nameRow.appendChild(name);
+    nameRow.appendChild(queueBtn);
+    card.appendChild(nameRow);
+
+    if (t.effects) {
+      const eff = document.createElement('div');
+      eff.className = 'rc-effects';
+      eff.textContent = '\u2605 ' + t.effects; // ★
+      card.appendChild(eff);
+    }
+
+    if (t.cost && t.cost.length > 0) {
+      const meta = document.createElement('div');
+      meta.className = 'rc-meta';
+      const costStr = t.cost.map(function(c) { return c.amount + ' ' + c.type; }).join(', ');
+      meta.textContent = costStr + ' \u00B7 ' + t.ticks_required + 'T';
+      card.appendChild(meta);
+    }
+
+    wrap.appendChild(card);
+  });
+}
+
+function renderResearchCompleted(completedIDs, tree) {
+  const wrap = document.getElementById('research-completed-wrap');
+  while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+  if (!completedIDs || completedIDs.length === 0) return;
+
+  const label = document.createElement('div');
+  label.className = 'research-section-label';
+  label.textContent = 'Completed (' + completedIDs.length + ')';
+  wrap.appendChild(label);
+
+  const techMap = {};
+  (tree || []).forEach(function(t) { techMap[t.id] = t; });
+
+  completedIDs.forEach(function(id) {
+    const card = document.createElement('div');
+    card.className = 'rc completed';
+
+    const nameRow = document.createElement('div');
+    nameRow.style.cssText = 'display:flex;gap:0.4rem;align-items:center;';
+
+    const check = document.createElement('span');
+    check.style.color = 'var(--success)';
+    check.textContent = '\u2713';
+
+    const name = document.createElement('span');
+    name.className = 'rc-name';
+    const tech = techMap[id];
+    name.textContent = tech ? tech.name : id;
+
+    nameRow.appendChild(check);
+    nameRow.appendChild(name);
+    card.appendChild(nameRow);
+
+    if (tech && tech.effects) {
+      const eff = document.createElement('div');
+      eff.className = 'rc-effects';
+      eff.textContent = tech.effects;
+      card.appendChild(eff);
+    }
+
+    wrap.appendChild(card);
+  });
+}
+
+function renderResearchLocked(techs) {
+  const wrap = document.getElementById('research-locked-wrap');
+  while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+  if (!techs || techs.length === 0) return;
+
+  const label = document.createElement('div');
+  label.className = 'research-section-label';
+  label.textContent = 'Locked';
+  wrap.appendChild(label);
+
+  techs.forEach(function(t) {
+    const card = document.createElement('div');
+    card.className = 'rc locked';
+
+    const name = document.createElement('div');
+    name.className = 'rc-name';
+    name.textContent = '\uD83D\uDD12 ' + t.name; // 🔒
+
+    card.appendChild(name);
+
+    if (t.effects) {
+      const eff = document.createElement('div');
+      eff.className = 'rc-effects';
+      eff.textContent = t.effects;
+      card.appendChild(eff);
+    }
+
+    if (t.prerequisites && t.prerequisites.length > 0) {
+      const pre = document.createElement('div');
+      pre.className = 'rc-prereqs';
+      pre.textContent = 'needs: ' + t.prerequisites.join(', ');
+      card.appendChild(pre);
+    }
+
+    wrap.appendChild(card);
+  });
+}
+
+async function queueResearch(techID, techName) {
+  if (!state.token) return;
+  if (!confirm('Queue research: ' + techName + '?')) return;
+  try {
+    const resp = await fetch('/agent/action', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ type: 'RESEARCH', parameters: { tech_id: techID } }),
+    });
+    const d = await resp.json();
+    if (d.queued) {
+      loadResearch();
+    } else {
+      alert(d.error || 'Failed to queue research');
+    }
+  } catch (_) { alert('Network error'); }
+}
+
 /* ═══════════════════════ VETO / OVERRIDE ═══════════════════════ */
 async function doVeto() {
   try {
@@ -1476,6 +1752,7 @@ function initTabs() {
       document.getElementById(btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'tab-inv')          fetchInventory();
       if (btn.dataset.tab === 'tab-mission')      loadMissions();
+      if (btn.dataset.tab === 'tab-research')     loadResearch();
       if (btn.dataset.tab === 'tab-chat')         loadChatHistory(chat.channel);
       if (btn.dataset.tab === 'tab-leaderboard')  loadLeaderboard();
       if (btn.dataset.tab === 'tab-bounty')       loadBounties();

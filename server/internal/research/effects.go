@@ -129,6 +129,16 @@ func GatherBonus(completed []string) float64 {
 		bonus += 0.10
 	}
 
+	// Wraith Brood
+	if set["hive_mind_link"] {
+		bonus += 0.10
+	}
+
+	// Tau'ri
+	if set["ancient_interface"] {
+		bonus += 0.15
+	}
+
 	// Ancient Seeker
 	if set["ancient_database"] {
 		bonus += 0.10

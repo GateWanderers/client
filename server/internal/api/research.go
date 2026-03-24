@@ -94,9 +94,12 @@ func (s *Server) handleAgentResearch(w http.ResponseWriter, r *http.Request) {
 	type availableTechItem struct {
 		ID            string                  `json:"id"`
 		Name          string                  `json:"name"`
+		NameDE        string                  `json:"name_de"`
 		TicksRequired int                     `json:"ticks_required"`
 		Cost          []research.ResourceCost `json:"cost"`
 		Prerequisites []string                `json:"prerequisites"`
+		Effects       string                  `json:"effects"`
+		EffectsDE     string                  `json:"effects_de"`
 	}
 
 	availableItems := make([]availableTechItem, 0, len(availableTechs))
@@ -112,9 +115,12 @@ func (s *Server) handleAgentResearch(w http.ResponseWriter, r *http.Request) {
 		availableItems = append(availableItems, availableTechItem{
 			ID:            t.ID,
 			Name:          t.Name,
+			NameDE:        t.NameDE,
 			TicksRequired: t.TicksRequired,
 			Cost:          cost,
 			Prerequisites: prereqs,
+			Effects:       t.Effects,
+			EffectsDE:     t.EffectsDE,
 		})
 	}
 

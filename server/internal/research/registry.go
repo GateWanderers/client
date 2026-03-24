@@ -17,6 +17,8 @@ type Tech struct {
 	TicksRequired int            `json:"ticks_required"`
 	Cost          []ResourceCost `json:"cost"`
 	Prerequisites []string       `json:"prerequisites"`
+	Effects       string         `json:"effects"`
+	EffectsDE     string         `json:"effects_de"`
 }
 
 // Registry is the global tech tree.
@@ -32,6 +34,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 5,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 20}},
 		Prerequisites: []string{},
+		Effects:       "+10% gather yield",
+		EffectsDE:     "+10% Sammelertrag",
 	},
 	"advanced_sensors": {
 		ID:            "advanced_sensors",
@@ -43,6 +47,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 8,
 		Cost:          []ResourceCost{{Type: "trinium", Amount: 30}},
 		Prerequisites: []string{"basic_navigation"},
+		Effects:       "+10% gather yield, +5% trade credits",
+		EffectsDE:     "+10% Sammelertrag, +5% Handelserlös",
 	},
 	"shield_tech": {
 		ID:            "shield_tech",
@@ -54,6 +60,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 10,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 50}},
 		Prerequisites: []string{},
+		Effects:       "+15% combat shield strength",
+		EffectsDE:     "+15% Kampfschildstärke",
 	},
 	"weapons_upgrade_1": {
 		ID:            "weapons_upgrade_1",
@@ -65,6 +73,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 8,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 40}},
 		Prerequisites: []string{},
+		Effects:       "+15% weapon damage",
+		EffectsDE:     "+15% Waffenschaden",
 	},
 
 	// Tau'ri techs (faction="tau_ri")
@@ -78,6 +88,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 15,
 		Cost:          []ResourceCost{{Type: "ancient_tech", Amount: 100}},
 		Prerequisites: []string{"advanced_sensors"},
+		Effects:       "+15% gather yield",
+		EffectsDE:     "+15% Sammelertrag",
 	},
 	"f302_specs": {
 		ID:            "f302_specs",
@@ -89,6 +101,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 12,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 60}},
 		Prerequisites: []string{"weapons_upgrade_1"},
+		Effects:       "+10% weapon damage",
+		EffectsDE:     "+10% Waffenschaden",
 	},
 	"daedalus_class": {
 		ID:            "daedalus_class",
@@ -100,6 +114,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 20,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 100}, {Type: "trinium", Amount: 50}},
 		Prerequisites: []string{"f302_specs", "shield_tech"},
+		Effects:       "+10% weapon damage, +10% shield",
+		EffectsDE:     "+10% Waffenschaden, +10% Schild",
 	},
 
 	// Free Jaffa techs (faction="free_jaffa")
@@ -113,6 +129,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 10,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 50}},
 		Prerequisites: []string{},
+		Effects:       "+5% weapon damage, +5% shield",
+		EffectsDE:     "+5% Waffenschaden, +5% Schild",
 	},
 	"jaffa_tactics": {
 		ID:            "jaffa_tactics",
@@ -124,6 +142,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 8,
 		Cost:          []ResourceCost{{Type: "trinium", Amount: 30}},
 		Prerequisites: []string{},
+		Effects:       "+10% weapon damage",
+		EffectsDE:     "+10% Waffenschaden",
 	},
 	"ha_tak_refit": {
 		ID:            "ha_tak_refit",
@@ -135,6 +155,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 18,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 80}},
 		Prerequisites: []string{"jaffa_tactics", "shield_tech"},
+		Effects:       "+10% combat shield strength",
+		EffectsDE:     "+10% Kampfschildstärke",
 	},
 
 	// Gate Nomad techs (faction="gate_nomad")
@@ -148,6 +170,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 6,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 20}},
 		Prerequisites: []string{},
+		Effects:       "+15% trade credits",
+		EffectsDE:     "+15% Handelserlös",
 	},
 	"stealth_systems": {
 		ID:            "stealth_systems",
@@ -159,6 +183,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 12,
 		Cost:          []ResourceCost{{Type: "trinium", Amount: 40}},
 		Prerequisites: []string{"basic_navigation"},
+		Effects:       "+10% gather yield",
+		EffectsDE:     "+10% Sammelertrag",
 	},
 	"smuggler_hold": {
 		ID:            "smuggler_hold",
@@ -170,6 +196,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 8,
 		Cost:          []ResourceCost{{Type: "trinium", Amount: 20}},
 		Prerequisites: []string{"black_market_contacts"},
+		Effects:       "+20% gather yield, +10% trade credits",
+		EffectsDE:     "+20% Sammelertrag, +10% Handelserlös",
 	},
 
 	// System Lord Remnant techs (faction="system_lord_remnant")
@@ -183,6 +211,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 12,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 60}},
 		Prerequisites: []string{},
+		Effects:       "+5% weapon, +5% shield, +10% trade",
+		EffectsDE:     "+5% Waffe, +5% Schild, +10% Handel",
 	},
 	"sarcophagus_tech": {
 		ID:            "sarcophagus_tech",
@@ -194,6 +224,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 15,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 50}, {Type: "ancient_tech", Amount: 30}},
 		Prerequisites: []string{},
+		Effects:       "+15% combat shield strength",
+		EffectsDE:     "+15% Kampfschildstärke",
 	},
 	"death_glider_upgrade": {
 		ID:            "death_glider_upgrade",
@@ -205,6 +237,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 10,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 40}},
 		Prerequisites: []string{"weapons_upgrade_1"},
+		Effects:       "+10% weapon damage",
+		EffectsDE:     "+10% Waffenschaden",
 	},
 
 	// Wraith Brood techs (faction="wraith_brood")
@@ -218,6 +252,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 8,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 30}},
 		Prerequisites: []string{},
+		Effects:       "+10% weapon damage",
+		EffectsDE:     "+10% Waffenschaden",
 	},
 	"hive_mind_link": {
 		ID:            "hive_mind_link",
@@ -229,6 +265,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 15,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 50}},
 		Prerequisites: []string{"advanced_sensors"},
+		Effects:       "+10% gather yield",
+		EffectsDE:     "+10% Sammelertrag",
 	},
 	"culling_beam": {
 		ID:            "culling_beam",
@@ -240,6 +278,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 12,
 		Cost:          []ResourceCost{{Type: "naquadah", Amount: 60}},
 		Prerequisites: []string{"weapons_upgrade_1"},
+		Effects:       "+15% weapon damage",
+		EffectsDE:     "+15% Waffenschaden",
 	},
 
 	// Ancient Seeker techs (faction="ancient_seeker")
@@ -253,6 +293,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 12,
 		Cost:          []ResourceCost{{Type: "ancient_tech", Amount: 100}},
 		Prerequisites: []string{"advanced_sensors"},
+		Effects:       "+10% gather yield",
+		EffectsDE:     "+10% Sammelertrag",
 	},
 	"zpm_theory": {
 		ID:            "zpm_theory",
@@ -264,6 +306,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 20,
 		Cost:          []ResourceCost{{Type: "ancient_tech", Amount: 200}},
 		Prerequisites: []string{"ancient_database"},
+		Effects:       "+15% shield, +20% gather yield",
+		EffectsDE:     "+15% Schild, +20% Sammelertrag",
 	},
 	"lantean_shielding": {
 		ID:            "lantean_shielding",
@@ -275,6 +319,8 @@ var Registry = map[string]Tech{
 		TicksRequired: 15,
 		Cost:          []ResourceCost{{Type: "ancient_tech", Amount: 80}},
 		Prerequisites: []string{"shield_tech"},
+		Effects:       "+25% combat shield strength",
+		EffectsDE:     "+25% Kampfschildstärke",
 	},
 }
 
