@@ -194,8 +194,8 @@ func processAttack(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 			NPCHP:     npcHP,
 		})
 
-		// Check retreat threshold: playerHP < 20% of effective max HP.
-		if playerHP < effectiveMaxHP/5 && npcHP > 0 && playerHP > 0 {
+		// Check retreat threshold: playerHP < 25% of effective max HP.
+		if playerHP < effectiveMaxHP/4 && npcHP > 0 && playerHP > 0 {
 			outcome = "retreat"
 			// Update ship hull_points to damaged value.
 			_, _ = pool.Exec(ctx,
@@ -232,10 +232,41 @@ func processAttack(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 
 	switch outcome {
 	case "victory":
-		// Generate loot.
-		lootTypes := []string{"naquadah", "trinium"}
-		lootType := lootTypes[rng.Intn(2)]
-		lootAmount := 10 + rng.Intn(41) // 10-50
+		// Generate loot — tiered by NPC strength.
+		var lootType string
+		var lootAmount int
+		switch {
+		case npc.Strength >= 70:
+			// High-tier: ancient_tech, naquadriah, or naquadah
+			lootChoice := rng.Intn(5)
+			if lootChoice < 2 {
+				lootType = "ancient_tech"
+			} else if lootChoice < 3 {
+				lootType = "naquadriah"
+			} else {
+				lootType = "naquadah"
+			}
+			lootAmount = 20 + rng.Intn(31) // 20-50
+		case npc.Strength >= 40:
+			// Mid-tier: naquadah, trinium, or ancient_tech
+			lootChoice := rng.Intn(5)
+			if lootChoice < 1 {
+				lootType = "ancient_tech"
+			} else if lootChoice < 3 {
+				lootType = "naquadah"
+			} else {
+				lootType = "trinium"
+			}
+			lootAmount = 15 + rng.Intn(26) // 15-40
+		default:
+			// Low-tier: naquadah or trinium
+			if rng.Intn(2) == 0 {
+				lootType = "naquadah"
+			} else {
+				lootType = "trinium"
+			}
+			lootAmount = 10 + rng.Intn(21) // 10-30
+		}
 
 		loot := []LootItem{{Type: lootType, Amount: lootAmount}}
 
@@ -250,7 +281,7 @@ func processAttack(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 
 		// Award XP for combat victory.
 		_, _ = pool.Exec(ctx,
-			`UPDATE agents SET experience = experience + 25 WHERE id = $1`, agentID,
+			`UPDATE agents SET experience = experience + 35 WHERE id = $1`, agentID,
 		)
 
 		result := CombatResult{
@@ -270,7 +301,7 @@ func processAttack(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 	default: // "defeat"
 		// Award XP for combat defeat (consolation).
 		_, _ = pool.Exec(ctx,
-			`UPDATE agents SET experience = experience + 8 WHERE id = $1`, agentID,
+			`UPDATE agents SET experience = experience + 5 WHERE id = $1`, agentID,
 		)
 
 		// Destroy ship; keep 75% of credits (min 100); schedule auto-respawn.
@@ -281,7 +312,7 @@ func processAttack(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 		_, _ = pool.Exec(ctx,
 			`UPDATE agents
 			 SET status       = 'rescue_pod',
-			     credits      = GREATEST(FLOOR(credits * 0.75)::int, 100),
+			     credits      = GREATEST(FLOOR(credits * 0.60)::int, 250),
 			     death_tick   = $2,
 			     respawn_tick = $2 + $3
 			 WHERE id = $1`,
@@ -447,9 +478,38 @@ func processFleetAttack(ctx context.Context, pool *pgxpool.Pool, members []Agent
 
 	switch outcome {
 	case "victory":
-		lootTypes := []string{"naquadah", "trinium"}
-		lootType := lootTypes[rng.Intn(2)]
-		lootTotal := 10 + rng.Intn(41) // 10-50 total, split evenly
+		// Generate loot — tiered by NPC strength.
+		var lootType string
+		var lootTotal int
+		switch {
+		case npc.Strength >= 70:
+			lootChoice := rng.Intn(5)
+			if lootChoice < 2 {
+				lootType = "ancient_tech"
+			} else if lootChoice < 3 {
+				lootType = "naquadriah"
+			} else {
+				lootType = "naquadah"
+			}
+			lootTotal = 20 + rng.Intn(31)
+		case npc.Strength >= 40:
+			lootChoice := rng.Intn(5)
+			if lootChoice < 1 {
+				lootType = "ancient_tech"
+			} else if lootChoice < 3 {
+				lootType = "naquadah"
+			} else {
+				lootType = "trinium"
+			}
+			lootTotal = 15 + rng.Intn(26)
+		default:
+			if rng.Intn(2) == 0 {
+				lootType = "naquadah"
+			} else {
+				lootType = "trinium"
+			}
+			lootTotal = 10 + rng.Intn(21)
+		}
 		perAgent := lootTotal / len(members)
 		if perAgent < 1 {
 			perAgent = 1
@@ -504,7 +564,7 @@ func processFleetAttack(ctx context.Context, pool *pgxpool.Pool, members []Agent
 			_, _ = pool.Exec(ctx,
 				`UPDATE agents
 				 SET status = 'rescue_pod',
-				     credits = GREATEST(FLOOR(credits * 0.75)::int, 100),
+				     credits = GREATEST(FLOOR(credits * 0.60)::int, 250),
 				     death_tick = $2, respawn_tick = $2 + $3
 				 WHERE id = $1`,
 				m.AgentID, tickNumber, respawnDelay,

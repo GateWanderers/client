@@ -73,6 +73,24 @@ func (s *Seeder) Seed(ctx context.Context) error {
 			Agenda:           "expansionist",
 			TerritorySystems: []string{},
 		},
+		{
+			ID:               "ori_prior",
+			Name:             "Ori Prior Crusade",
+			NameDE:           "Ori-Prior-Kreuzzug",
+			GalaxyID:         "milky_way",
+			FleetStrength:    180,
+			Agenda:           "expansionist",
+			TerritorySystems: []string{"camelot"},
+		},
+		{
+			ID:               "ancient_construct",
+			Name:             "Ancient Construct Defense",
+			NameDE:           "Altvorderen-Konstrukt-Verteidigung",
+			GalaxyID:         "destiny",
+			FleetStrength:    160,
+			Agenda:           "defensive",
+			TerritorySystems: []string{"desert_ruins", "unnamed_outpost"},
+		},
 	}
 
 	for _, f := range factions {

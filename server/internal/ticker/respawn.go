@@ -11,7 +11,7 @@ import (
 	"gatewanderers/server/internal/hub"
 )
 
-const respawnDelay = int64(3) // ticks before auto-respawn
+const respawnDelay = int64(5) // ticks before auto-respawn
 
 // checkRespawns finds every agent in 'rescue_pod' whose respawn_tick has
 // arrived and gives them a fresh starter ship at their home system.

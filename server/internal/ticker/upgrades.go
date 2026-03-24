@@ -50,10 +50,10 @@ func processRepair(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 		toRepair = *p.Amount
 	}
 
-	cost := toRepair * 2
+	cost := toRepair * 3
 	if cost > credits {
-		toRepair = credits / 2
-		cost = toRepair * 2
+		toRepair = credits / 3
+		cost = toRepair * 3
 	}
 	if toRepair <= 0 {
 		return upgradeResult{PayloadEN: "Insufficient credits for repair.", PayloadDE: "Nicht genug Credits für Reparatur.", EventType: "repair_fail"}
@@ -78,7 +78,7 @@ func processRepair(ctx context.Context, pool *pgxpool.Pool, agentID string, para
 
 // processUpgrade increases one upgrade level (weapon/shield/engine/cargo) by 1.
 // Parameters: {"system": "weapon"|"shield"|"engine"|"cargo"}
-// Cost: 500 * current_level credits.
+// Cost: 500 * current_level² credits.
 func processUpgrade(ctx context.Context, pool *pgxpool.Pool, agentID string, params json.RawMessage) upgradeResult {
 	var p struct {
 		System string `json:"system"`
@@ -114,7 +114,7 @@ func processUpgrade(ctx context.Context, pool *pgxpool.Pool, agentID string, par
 		return upgradeResult{PayloadEN: fmt.Sprintf("%s system is already at maximum level (5).", p.System), PayloadDE: fmt.Sprintf("%s-System ist bereits auf Maximalstufe (5).", p.System), EventType: "upgrade_fail"}
 	}
 
-	cost := 400 * curLevel
+	cost := 500 * curLevel * curLevel
 	if credits < cost {
 		return upgradeResult{
 			PayloadEN: fmt.Sprintf("Insufficient credits. Upgrading %s to level %d costs %d credits.", p.System, curLevel+1, cost),
@@ -151,15 +151,15 @@ type shipSpec struct {
 
 var shipSpecs = map[string]shipSpec{
 	"patrol_craft": {
-		class: "patrol_craft", name: "Patrol Craft", hp: 200, cost: 2000,
+		class: "patrol_craft", name: "Patrol Craft", hp: 250, cost: 3000,
 		nameEN: "Patrol Craft", nameDE: "Patrouillenschiff",
 	},
 	"destroyer": {
-		class: "destroyer", name: "Destroyer", hp: 400, cost: 8000,
+		class: "destroyer", name: "Destroyer", hp: 500, cost: 12000,
 		nameEN: "Destroyer", nameDE: "Zerstörer",
 	},
 	"battlecruiser": {
-		class: "battlecruiser", name: "Battlecruiser", hp: 800, cost: 25000,
+		class: "battlecruiser", name: "Battlecruiser", hp: 1000, cost: 40000,
 		nameEN: "Battlecruiser", nameDE: "Schlachtkreuzer",
 	},
 }
