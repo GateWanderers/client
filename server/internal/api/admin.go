@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -464,4 +465,48 @@ func (s *Server) handleAdminResumeTick(w http.ResponseWriter, r *http.Request) {
 	s.ticker.Resume()
 	s.auditLog(r.Context(), adminID, "resume_ticker", "", "")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "resumed"})
+}
+
+// ── GET /admin/stats/history ──────────────────────────────────────────────
+
+func (s *Server) handleAdminStatsHistory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	limit := 100
+	if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && n > 0 && n <= 500 {
+		limit = n
+	}
+
+	rows, err := s.registry.Pool().Query(ctx,
+		`SELECT tick_number, total_credits, active_agents, total_ships, player_systems, system_control
+		 FROM stats_history
+		 ORDER BY tick_number DESC LIMIT $1`, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	type row struct {
+		Tick          int64           `json:"tick"`
+		TotalCredits  int64           `json:"total_credits"`
+		ActiveAgents  int             `json:"active_agents"`
+		TotalShips    int             `json:"total_ships"`
+		PlayerSystems int             `json:"player_systems"`
+		SystemControl json.RawMessage `json:"system_control"`
+	}
+	var result []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.Tick, &r.TotalCredits, &r.ActiveAgents, &r.TotalShips, &r.PlayerSystems, &r.SystemControl); err == nil {
+			result = append(result, r)
+		}
+	}
+	// Reverse to chronological order (oldest first).
+	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+		result[i], result[j] = result[j], result[i]
+	}
+	if result == nil {
+		result = []row{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"history": result})
 }

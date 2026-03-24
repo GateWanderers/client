@@ -277,8 +277,44 @@ func (t *Ticker) processTick(ctx context.Context) error {
 	// Clean up expired skill boosts.
 	_, _ = t.pool.Exec(ctx, `DELETE FROM skill_boosts WHERE expires_at_tick < $1`, tickNumber)
 
+	// Record economy snapshot for admin charts.
+	t.recordStatsHistory(ctx, tickNumber)
+
 	slog.Info("ticker: tick complete", "tick", tickNumber, "actions", len(actions))
 	return nil
+}
+
+// recordStatsHistory writes a one-row economy snapshot into stats_history.
+func (t *Ticker) recordStatsHistory(ctx context.Context, tickNumber int64) {
+	var totalCredits int64
+	var activeAgents, totalShips, playerSystems int
+	_ = t.pool.QueryRow(ctx, `SELECT COALESCE(SUM(credits),0) FROM agents`).Scan(&totalCredits)
+	_ = t.pool.QueryRow(ctx, `SELECT COUNT(*) FROM agents WHERE status = 'active'`).Scan(&activeAgents)
+	_ = t.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ships`).Scan(&totalShips)
+	_ = t.pool.QueryRow(ctx, `SELECT COUNT(*) FROM system_control WHERE controller_type = 'player'`).Scan(&playerSystems)
+
+	rows, err := t.pool.Query(ctx,
+		`SELECT controller_faction, COUNT(*) FROM system_control
+		 WHERE controller_type = 'player' GROUP BY controller_faction`)
+	controlMap := map[string]int{}
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var faction string
+			var cnt int
+			if rows.Scan(&faction, &cnt) == nil {
+				controlMap[faction] = cnt
+			}
+		}
+	}
+	controlJSON, _ := json.Marshal(controlMap)
+
+	_, _ = t.pool.Exec(ctx,
+		`INSERT INTO stats_history
+		 (tick_number, total_credits, active_agents, total_ships, player_systems, system_control)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (tick_number) DO NOTHING`,
+		tickNumber, totalCredits, activeAgents, totalShips, playerSystems, controlJSON)
 }
 
 // checkResearchCompletion checks for agents whose research has completed and finalizes it.

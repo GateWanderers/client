@@ -110,6 +110,7 @@ func (s *Server) NewRouter() http.Handler {
 		r.Post("/admin/tick/resume",             s.handleAdminResumeTick)
 		r.Post("/admin/galactic-events",             s.handleAdminCreateGalacticEvent)
 		r.Delete("/admin/galactic-events/{eventID}", s.handleAdminEndGalacticEvent)
+		r.Get("/admin/stats/history",                s.handleAdminStatsHistory)
 	})
 
 	// Admin dashboard page — public static file (auth handled client-side).
