@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"gatewanderers/server/internal/hub"
 )
 
 // ── GET /bounties ─────────────────────────────────────────────────────────
@@ -122,6 +124,16 @@ func (s *Server) handlePlaceBounty(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to place bounty")
 		return
 	}
+
+	// Broadcast bounty event so clients can show map animation.
+	var targetName string
+	_ = pool.QueryRow(ctx, `SELECT name FROM agents WHERE id = $1`, body.TargetAgentID).Scan(&targetName)
+	bPayload, _ := json.Marshal(map[string]interface{}{
+		"target_id":   body.TargetAgentID,
+		"target_name": targetName,
+		"amount":      body.Amount,
+	})
+	s.hub.Broadcast(hub.Message{Type: "bounty", Event: json.RawMessage(bPayload)})
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"bounty_id": bountyID,

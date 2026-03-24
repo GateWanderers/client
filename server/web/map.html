@@ -485,6 +485,53 @@
     .ring-anim-npc    { animation: ring-capture-npc    1.2s ease-out forwards; }
     .ring-shockwave   { animation: ring-shockwave 1s ease-out forwards; transform-box: fill-box; transform-origin: center; pointer-events: none; }
 
+    /* ── TOAST NOTIFICATIONS ── */
+    #toast-container {
+      position: fixed; top: 3.5rem; right: 0.75rem;
+      display: flex; flex-direction: column; gap: 0.35rem;
+      z-index: 200; pointer-events: none;
+    }
+    .toast {
+      background: #0d1020; border: 1px solid var(--border); border-radius: 5px;
+      padding: 0.45rem 0.75rem; font-size: 0.8rem; color: var(--text);
+      max-width: 240px; transition: opacity 0.35s; word-break: break-word;
+    }
+    .toast-success { border-color: var(--success); }
+    .toast-bounty  { border-color: var(--warn); }
+    .toast-event   { border-color: var(--accent); }
+
+    /* ── MOBILE NAV BAR ── */
+    #mobile-nav { display: none; }
+
+    @media (max-width: 768px) {
+      #mobile-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        height: 52px;
+        background: #080b12;
+        border-top: 1px solid var(--border);
+        z-index: 55;
+        padding-bottom: env(safe-area-inset-bottom, 0);
+      }
+      .mnav-btn {
+        flex: 1; background: none; border: none; border-radius: 0;
+        color: var(--muted); font-size: 1.1rem;
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 0.1rem; padding: 0.2rem;
+        cursor: pointer; transition: color 0.15s;
+      }
+      .mnav-btn span { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.04em; }
+      .mnav-btn.active { color: var(--accent-hi); }
+
+      /* Sidebar sits above mobile nav */
+      #sidebar { bottom: 52px; }
+
+      /* Feed panel above mobile nav */
+      #feed-panel         { bottom: 52px; }
+      #feed-panel.collapsed { height: 24px; bottom: 52px; }
+    }
+
     /* Hide sidebar handle on desktop */
     #sidebar-handle { display: none; }
   </style>
@@ -1408,12 +1455,12 @@ function connectWS() {
       if (state.token) {
         fetchAgentState();
         fetchInventory();
-        const mTab = document.getElementById('tab-mission');
-        if (mTab && mTab.classList.contains('active')) loadMissions();
+        const misTab = document.getElementById('tab-mission');
+        if (misTab && misTab.classList.contains('active')) loadMissions();
         const rTab = document.getElementById('tab-research');
         if (rTab && rTab.classList.contains('active')) loadResearch();
-        const mTab = document.getElementById('tab-mining');
-        if (mTab && mTab.classList.contains('active')) loadMining();
+        const minTab = document.getElementById('tab-mining');
+        if (minTab && minTab.classList.contains('active')) loadMining();
         const sTab = document.getElementById('tab-skills');
         if (sTab && sTab.classList.contains('active')) loadSkills();
       }
@@ -1429,6 +1476,22 @@ function connectWS() {
     } else if (msg.type === 'feed' && msg.event) {
       const feedMsg = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
       prependFeedEntry(feedMsg, true);
+    } else if (msg.type === 'bounty' && msg.event) {
+      // Bounty placed — show map star + toast.
+      const bMsg = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
+      playMapOverlay(bMsg.target_id, '\u2605', '#c09030'); // ★ gold star
+      showToast('\u2605 Bounty placed on ' + (bMsg.target_name || 'agent') +
+        ': ' + (bMsg.amount || 0).toLocaleString() + ' cr', 'bounty');
+    } else if (msg.type === 'event' && msg.event) {
+      // Agent-specific event (research_complete, fleet_combat, etc.).
+      const ev = typeof msg.event === 'string' ? JSON.parse(msg.event) : msg.event;
+      if (ev.type === 'research_complete') {
+        showToast('\u2714 ' + (state.lang === 'de' ? ev.payload_de : ev.payload_en), 'success');
+      } else if (ev.type === 'mission_complete') {
+        showToast('\u2714 ' + (state.lang === 'de' ? ev.payload_de : ev.payload_en), 'success');
+        const myID = state.agentState && state.agentState.agent && state.agentState.agent.id;
+        if (myID) playMapOverlay(myID, '\u2713', '#40a060'); // ✓ green check
+      }
     }
   };
 
@@ -1448,6 +1511,9 @@ function reconnectWS() {
 
 /* ═══════════════════════ MISSION BRIEF ═══════════════════════ */
 /* ═══════════════════════ MISSIONS ═══════════════════════ */
+// Tracks mission status across loadMissions() calls to detect completions.
+const _missionStates = {};
+
 async function loadMissions() {
   if (!state.token) return;
   const listEl  = document.getElementById('mission-list');
@@ -1457,6 +1523,17 @@ async function loadMissions() {
     if (!resp.ok) return;
     const data = await resp.json();
     const ms = (data.missions || []).filter(m => m.status !== 'expired');
+
+    // Detect newly completed missions and play map overlay.
+    const myID = state.agentState && state.agentState.agent && state.agentState.agent.id;
+    ms.forEach(function(m) {
+      const prev = _missionStates[m.id];
+      if (prev === 'active' && m.status === 'completed') {
+        if (myID) playMapOverlay(myID, '\u2713', '#40a060'); // ✓ green check
+        showToast('\u2714 Mission abgeschlossen: ' + m.title_en, 'success');
+      }
+      _missionStates[m.id] = m.status;
+    });
 
     while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
     emptyEl.style.display = ms.length === 0 ? 'block' : 'none';
@@ -1974,6 +2051,53 @@ async function activateSkill(skillID, skillName) {
       alert(d.error || 'Skill konnte nicht aktiviert werden');
     }
   } catch (_) { alert('Network error'); }
+}
+
+/* ═══════════════════════ TOAST & MAP OVERLAYS ═══════════════════════ */
+function showToast(msg, type) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + (type || 'event');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(function() { t.style.opacity = '0'; }, 2800);
+  setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 3200);
+}
+
+// Plays a floating symbol animation over an agent marker on the SVG map.
+// agentID: the agent's DB id (used in the SVG element id)
+// symbol:  text to show (e.g. '★', '✓')
+// color:   fill color string
+function playMapOverlay(agentID, symbol, color) {
+  const marker = document.getElementById('agent-' + agentID);
+  if (!marker) return;
+
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  el.setAttribute('x', '0');
+  el.setAttribute('y', '-16');
+  el.setAttribute('text-anchor', 'middle');
+  el.setAttribute('font-size', '14');
+  el.setAttribute('fill', color);
+  el.setAttribute('pointer-events', 'none');
+  el.textContent = symbol;
+
+  // Animate: float upward while fading out using SVG <animate>.
+  const animOp = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+  animOp.setAttribute('attributeName', 'opacity');
+  animOp.setAttribute('values', '1;1;0');
+  animOp.setAttribute('dur', '1.4s');
+  animOp.setAttribute('fill', 'freeze');
+  el.appendChild(animOp);
+
+  const animY = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+  animY.setAttribute('attributeName', 'y');
+  animY.setAttribute('values', '-16;-18;-32');
+  animY.setAttribute('dur', '1.4s');
+  animY.setAttribute('fill', 'freeze');
+  el.appendChild(animY);
+
+  marker.appendChild(el);
+  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1500);
 }
 
 /* ═══════════════════════ VETO / OVERRIDE ═══════════════════════ */
@@ -2798,6 +2922,41 @@ function applyMapTransform() {
     'translate(' + _svgPanX + ',' + _svgPanY + ') scale(' + _svgScale + ')');
 }
 
+/* ═══════════════════════ MOBILE NAV ═══════════════════════ */
+function initMobileNav() {
+  const sidebar = document.getElementById('sidebar');
+  document.querySelectorAll('.mnav-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const tabID = btn.dataset.tab;
+      // Activate the tab.
+      document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+      document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+      const targetTab = document.getElementById(tabID);
+      if (targetTab) targetTab.classList.add('active');
+      // Sync the tab-btn highlight.
+      document.querySelectorAll('.tab-btn[data-tab="' + tabID + '"]').forEach(function(b) { b.classList.add('active'); });
+
+      // Mark active mobile nav button.
+      document.querySelectorAll('.mnav-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+
+      // Open sidebar drawer.
+      sidebar.classList.add('mobile-open');
+
+      // Load tab data.
+      if (tabID === 'tab-inv')          fetchInventory();
+      if (tabID === 'tab-mission')      loadMissions();
+      if (tabID === 'tab-research')     loadResearch();
+      if (tabID === 'tab-mining')       loadMining();
+      if (tabID === 'tab-skills')       loadSkills();
+      if (tabID === 'tab-chat')         loadChatHistory(chat.channel);
+      if (tabID === 'tab-leaderboard')  loadLeaderboard();
+      if (tabID === 'tab-bounty')       loadBounties();
+      if (tabID === 'tab-clan')         loadClan();
+    });
+  });
+}
+
 /* ═══════════════════════ INIT ═══════════════════════ */
 function init() {
   applyI18n();
@@ -2805,6 +2964,7 @@ function init() {
   initChat();
   initClan();
   initMobile();
+  initMobileNav();
 
   document.getElementById('galaxy-select').addEventListener('change', function(e) {
     state.galaxy = e.target.value;
@@ -2849,5 +3009,18 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container" aria-live="polite"></div>
+
+<!-- MOBILE BOTTOM NAV -->
+<div id="mobile-nav" role="navigation" aria-label="Quick navigation">
+  <button class="mnav-btn" data-tab="tab-agent" aria-label="Agent">👤<span>Agent</span></button>
+  <button class="mnav-btn" data-tab="tab-chat"  aria-label="Chat">💬<span>Chat</span></button>
+  <button class="mnav-btn" data-tab="tab-mission" aria-label="Missions">📋<span>Mission</span></button>
+  <button class="mnav-btn" data-tab="tab-mining"  aria-label="Mining">⛏<span>Mine</span></button>
+  <button class="mnav-btn" data-tab="tab-leaderboard" aria-label="Leaderboard">⭐<span>Rank</span></button>
+</div>
+
 </body>
 </html>
