@@ -1,6 +1,9 @@
 {
   "server_url": "http://localhost:8080",
   "token": "",
-  "ollama_url": "http://localhost:11434",
-  "ollama_model": "llama3.1:8b"
+  "llm": {
+    "provider": "ollama",
+    "model": "llama3.1:8b",
+    "base_url": "http://localhost:11434"
+  }
 }

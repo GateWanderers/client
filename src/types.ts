@@ -68,9 +68,20 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface LLMConfig {
+  provider: "ollama" | "openai" | "anthropic" | "groq";
+  model: string;
+  base_url?: string;
+  api_key?: string;
+}
+
 export interface Config {
   server_url: string;
   token: string;
-  ollama_url: string;
-  ollama_model: string;
+  /** LLM provider configuration. Replaces the legacy ollama_url/ollama_model fields. */
+  llm?: LLMConfig;
+  /** @deprecated Use llm.base_url instead. */
+  ollama_url?: string;
+  /** @deprecated Use llm.model instead. */
+  ollama_model?: string;
 }

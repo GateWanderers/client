@@ -10,6 +10,7 @@
 import * as readline from "node:readline";
 import { loadConfig, saveToken } from "./config.ts";
 import { ApiClient, buildStreamURL } from "./api.ts";
+import { createProvider } from "./llm.ts";
 import type { Faction, Playstyle, RegisterRequest } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -204,37 +205,6 @@ async function cmdState(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Call the local Ollama API and return the action string (e.g. "EXPLORE").
- * Falls back to "EXPLORE" if the model response cannot be parsed.
- */
-async function askOllama(
-  ollamaURL: string,
-  model: string,
-  prompt: string
-): Promise<string> {
-  try {
-    const res = await fetch(`${ollamaURL.replace(/\/$/, "")}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
-    const data = await res.json() as { message?: { content?: string } };
-    const content = data.message?.content ?? "";
-    // Try to extract a JSON object with an "action" field.
-    const match = content.match(/\{[^}]*"action"\s*:\s*"([^"]+)"[^}]*\}/);
-    if (match) return match[1].toUpperCase();
-  } catch (err) {
-    console.error("Ollama error (defaulting to EXPLORE):", (err as Error).message);
-  }
-  return "EXPLORE";
-}
-
-/**
  * Connect to the game stream and run the AI agent loop.
  * Automatically reconnects after 5 seconds on disconnect.
  */
@@ -246,10 +216,12 @@ async function cmdAgent(): Promise<void> {
     process.exit(1);
   }
 
+  const llm = createProvider(config.llm!);
   const client = new ApiClient(config.server_url, config.token);
-  let lang: string = "en"; // resolved from agent state on first tick
+  let lang: string = "en";
 
   console.log("=== GateWanderers — AI Agent ===");
+  console.log(`LLM provider: ${llm.name} (${config.llm!.model})`);
   console.log("Connecting to", config.server_url, "...");
 
   // eslint-disable-next-line no-constant-condition
@@ -276,32 +248,57 @@ async function cmdAgent(): Promise<void> {
           const tick = msg["tick"] as number;
           console.log(`\n--- Tick ${tick} ---`);
 
-          // Fetch current agent state to build the prompt.
-          let prompt: string;
+          let state;
           try {
-            const state = await client.getAgentState();
-            const { agent, ship } = state;
-            prompt = [
-              "You are an AI agent in GateWanderers, a space MMO in the Stargate universe.",
-              `Your faction: ${agent.faction}`,
-              `Your playstyle: ${agent.playstyle}`,
-              `Your ship: ${ship.name} at ${ship.galaxy_id}/${ship.system_id}`,
-              `Mission brief: ${agent.mission_brief || "(none)"}`,
-              "",
-              "Available actions: EXPLORE",
-              "",
-              'Respond with ONLY a JSON object: {"action": "EXPLORE"}',
-            ].join("\n");
+            state = await client.getAgentState();
           } catch (err) {
             console.error("Failed to fetch agent state:", (err as Error).message);
-            prompt = 'Respond with ONLY a JSON object: {"action": "EXPLORE"}';
+            return;
           }
 
-          const action = await askOllama(
-            config.ollama_url,
-            config.ollama_model,
-            prompt
-          );
+          const { agent, ship } = state;
+          const hullPct = Math.round((ship.hull_points / ship.max_hull_points) * 100);
+          const prompt = [
+            "You are an AI agent in GateWanderers, a space strategy MMO in the Stargate universe.",
+            "",
+            "=== YOUR STATUS ===",
+            `Faction: ${agent.faction} | Playstyle: ${agent.playstyle}`,
+            `Credits: ${agent.credits} | XP: ${agent.experience}`,
+            `Ship: ${ship.name} (${ship.class}) — Hull: ${ship.hull_points}/${ship.max_hull_points} (${hullPct}%)`,
+            `Location: galaxy=${ship.galaxy_id} system=${ship.system_id}${ship.planet_id ? ` planet=${ship.planet_id}` : ""}`,
+            `Mission brief: ${agent.mission_brief || "(none)"}`,
+            "",
+            "=== AVAILABLE ACTIONS ===",
+            "EXPLORE       — scan current system, gain XP",
+            "GATHER        — collect resources in current system",
+            "MINE          — mine ore/minerals (requires planet)",
+            "SURVEY        — survey planet for resources",
+            "DIAL_GATE     — travel through stargate to another system",
+            "ATTACK        — attack enemies in current system",
+            "DEFEND        — defend current system, gain defense strength",
+            "DIPLOMACY     — perform diplomatic action",
+            "RESEARCH      — advance research tree",
+            "BUY           — buy goods from market",
+            "SELL          — sell goods on market",
+            "ACCEPT_TRADE  — accept a pending trade offer",
+            "REPAIR        — repair ship hull (costs credits)",
+            "UPGRADE       — upgrade ship (costs credits)",
+            "BUY_SHIP      — buy a new ship (costs credits)",
+            "",
+            "=== STRATEGY HINTS ===",
+            hullPct < 30 ? "WARNING: Hull critically low — consider REPAIR." : "",
+            agent.credits < 500 ? "Low credits — prioritize GATHER or SELL." : "",
+            "",
+            'Respond with ONLY a JSON object on one line: {"action": "ACTION_NAME"}',
+          ].filter((l) => l !== "").join("\n");
+
+          let action: string;
+          try {
+            action = await llm.complete(prompt, state);
+          } catch (err) {
+            console.error("LLM error (defaulting to EXPLORE):", (err as Error).message);
+            action = "EXPLORE";
+          }
           console.log(`AI chose action: ${action}`);
 
           try {
