@@ -10,6 +10,7 @@
 import * as readline from "node:readline";
 import { loadConfig, saveToken } from "./config.ts";
 import { ApiClient, buildStreamURL } from "./api.ts";
+import { createProvider } from "./llm.ts";
 import type { Faction, Playstyle, RegisterRequest } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -204,39 +205,10 @@ async function cmdState(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Call the local Ollama API and return the action string (e.g. "EXPLORE").
- * Falls back to "EXPLORE" if the model response cannot be parsed.
- */
-async function askOllama(
-  ollamaURL: string,
-  model: string,
-  prompt: string
-): Promise<string> {
-  try {
-    const res = await fetch(`${ollamaURL.replace(/\/$/, "")}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
-    const data = await res.json() as { message?: { content?: string } };
-    const content = data.message?.content ?? "";
-    // Try to extract a JSON object with an "action" field.
-    const match = content.match(/\{[^}]*"action"\s*:\s*"([^"]+)"[^}]*\}/);
-    if (match) return match[1].toUpperCase();
-  } catch (err) {
-    console.error("Ollama error (defaulting to EXPLORE):", (err as Error).message);
-  }
-  return "EXPLORE";
-}
-
-/**
  * Connect to the game stream and run the AI agent loop.
+ * Provider is selected from config.llm (new) or legacy ollama_* fields.
  * Automatically reconnects after 5 seconds on disconnect.
+ * Graceful shutdown on SIGINT (Ctrl-C).
  */
 async function cmdAgent(): Promise<void> {
   const config = loadConfig();
@@ -246,23 +218,43 @@ async function cmdAgent(): Promise<void> {
     process.exit(1);
   }
 
+  // Resolve LLM provider — new config takes precedence over legacy fields.
+  const llmCfg = config.llm ?? {
+    provider: "ollama" as const,
+    model: config.ollama_model,
+    base_url: config.ollama_url,
+  };
+  const provider = createProvider(llmCfg);
+
   const client = new ApiClient(config.server_url, config.token);
-  let lang: string = "en"; // resolved from agent state on first tick
+  let lang: string = "en";
+  let running = true;
+  let activeWS: WebSocket | null = null;
+
+  process.on("SIGINT", () => {
+    console.log("\nShutting down agent...");
+    running = false;
+    activeWS?.close();
+  });
 
   console.log("=== GateWanderers — AI Agent ===");
+  console.log(`LLM provider: ${provider.name} (${llmCfg.model})`);
   console.log("Connecting to", config.server_url, "...");
+  console.log("Press Ctrl-C to stop.");
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  while (running) {
     await new Promise<void>((resolve) => {
       const url = buildStreamURL(config.server_url, config.token);
       const ws = new WebSocket(url);
+      activeWS = ws;
 
       ws.onopen = () => {
         console.log("Connected to game stream.");
       };
 
       ws.onmessage = async (event: MessageEvent) => {
+        if (!running) return;
+
         let msg: Record<string, unknown>;
         try {
           msg = JSON.parse(event.data as string) as Record<string, unknown>;
@@ -276,11 +268,12 @@ async function cmdAgent(): Promise<void> {
           const tick = msg["tick"] as number;
           console.log(`\n--- Tick ${tick} ---`);
 
-          // Fetch current agent state to build the prompt.
+          let agentState;
           let prompt: string;
           try {
-            const state = await client.getAgentState();
-            const { agent, ship } = state;
+            agentState = await client.getAgentState();
+            const { agent, ship } = agentState;
+            lang = agent.language ?? "en";
             prompt = [
               "You are an AI agent in GateWanderers, a space MMO in the Stargate universe.",
               `Your faction: ${agent.faction}`,
@@ -295,13 +288,17 @@ async function cmdAgent(): Promise<void> {
           } catch (err) {
             console.error("Failed to fetch agent state:", (err as Error).message);
             prompt = 'Respond with ONLY a JSON object: {"action": "EXPLORE"}';
+            agentState = undefined;
           }
 
-          const action = await askOllama(
-            config.ollama_url,
-            config.ollama_model,
-            prompt
-          );
+          let action = "EXPLORE";
+          try {
+            action = agentState
+              ? await provider.complete(prompt, agentState)
+              : "EXPLORE";
+          } catch (err) {
+            console.error("LLM error (defaulting to EXPLORE):", (err as Error).message);
+          }
           console.log(`AI chose action: ${action}`);
 
           try {
@@ -329,11 +326,16 @@ async function cmdAgent(): Promise<void> {
       };
 
       ws.onclose = () => {
+        activeWS = null;
+        if (!running) { resolve(); return; }
         console.log("WebSocket disconnected. Reconnecting in 5 seconds...");
         setTimeout(() => resolve(), 5000);
       };
     });
   }
+
+  console.log("Agent stopped.");
+  process.exit(0);
 }
 
 // ---------------------------------------------------------------------------

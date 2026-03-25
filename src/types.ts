@@ -24,6 +24,7 @@ export interface Agent {
   research: unknown[];
   reputation: Record<string, unknown>;
   mission_brief: string;
+  language: string;
   created_at: string;
 }
 
@@ -71,6 +72,14 @@ export interface ErrorResponse {
 export interface Config {
   server_url: string;
   token: string;
+  // Legacy Ollama fields (still supported).
   ollama_url: string;
   ollama_model: string;
+  // New LLM provider config — takes precedence over legacy fields if present.
+  llm?: {
+    provider: "ollama" | "openai" | "anthropic" | "groq";
+    model: string;
+    base_url?: string;
+    api_key?: string;
+  };
 }
