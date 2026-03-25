@@ -219,6 +219,7 @@ async function cmdAgent(): Promise<void> {
   const llm = createProvider(config.llm!);
   const client = new ApiClient(config.server_url, config.token);
   let lang: string = "en";
+  let retryDelay = 1000; // ms — exponential backoff, max 30s
 
   console.log("=== GateWanderers — AI Agent ===");
   console.log(`LLM provider: ${llm.name} (${config.llm!.model})`);
@@ -231,6 +232,7 @@ async function cmdAgent(): Promise<void> {
       const ws = new WebSocket(url);
 
       ws.onopen = () => {
+        retryDelay = 1000; // reset on successful connect
         console.log("Connected to game stream.");
       };
 
@@ -326,8 +328,11 @@ async function cmdAgent(): Promise<void> {
       };
 
       ws.onclose = () => {
-        console.log("WebSocket disconnected. Reconnecting in 5 seconds...");
-        setTimeout(() => resolve(), 5000);
+        const jitter = Math.floor(Math.random() * 500);
+        const delay = retryDelay + jitter;
+        console.log(`WebSocket disconnected. Reconnecting in ${(delay / 1000).toFixed(1)}s...`);
+        retryDelay = Math.min(retryDelay * 2, 30_000);
+        setTimeout(() => resolve(), delay);
       };
     });
   }
