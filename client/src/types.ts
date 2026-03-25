@@ -24,6 +24,7 @@ export interface Agent {
   research: unknown[];
   reputation: Record<string, unknown>;
   mission_brief: string;
+  language: string;
   created_at: string;
 }
 

@@ -237,6 +237,7 @@ async function askOllama(
 /**
  * Connect to the game stream and run the AI agent loop.
  * Automatically reconnects after 5 seconds on disconnect.
+ * Graceful shutdown on SIGINT (Ctrl-C).
  */
 async function cmdAgent(): Promise<void> {
   const config = loadConfig();
@@ -248,21 +249,32 @@ async function cmdAgent(): Promise<void> {
 
   const client = new ApiClient(config.server_url, config.token);
   let lang: string = "en"; // resolved from agent state on first tick
+  let running = true;
+  let activeWS: WebSocket | null = null;
+
+  process.on("SIGINT", () => {
+    console.log("\nShutting down agent...");
+    running = false;
+    activeWS?.close();
+  });
 
   console.log("=== GateWanderers — AI Agent ===");
   console.log("Connecting to", config.server_url, "...");
+  console.log("Press Ctrl-C to stop.");
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  while (running) {
     await new Promise<void>((resolve) => {
       const url = buildStreamURL(config.server_url, config.token);
       const ws = new WebSocket(url);
+      activeWS = ws;
 
       ws.onopen = () => {
         console.log("Connected to game stream.");
       };
 
       ws.onmessage = async (event: MessageEvent) => {
+        if (!running) return;
+
         let msg: Record<string, unknown>;
         try {
           msg = JSON.parse(event.data as string) as Record<string, unknown>;
@@ -281,6 +293,7 @@ async function cmdAgent(): Promise<void> {
           try {
             const state = await client.getAgentState();
             const { agent, ship } = state;
+            lang = agent.language ?? "en";
             prompt = [
               "You are an AI agent in GateWanderers, a space MMO in the Stargate universe.",
               `Your faction: ${agent.faction}`,
@@ -329,11 +342,19 @@ async function cmdAgent(): Promise<void> {
       };
 
       ws.onclose = () => {
+        activeWS = null;
+        if (!running) {
+          resolve();
+          return;
+        }
         console.log("WebSocket disconnected. Reconnecting in 5 seconds...");
         setTimeout(() => resolve(), 5000);
       };
     });
   }
+
+  console.log("Agent stopped.");
+  process.exit(0);
 }
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,41 @@ import type {
 } from "./types.ts";
 
 /**
+ * Retryable HTTP error: 5xx or network failure.
+ */
+function isRetryable(err: unknown): boolean {
+  if (err instanceof RetryableError) return true;
+  // Network-level errors (fetch throws TypeError on connection refused etc.)
+  if (err instanceof TypeError) return true;
+  return false;
+}
+
+class RetryableError extends Error {
+  constructor(status: number) {
+    super(`HTTP ${status}`);
+    this.name = "RetryableError";
+  }
+}
+
+/**
+ * Retry fn up to maxRetries times with exponential backoff (1s, 2s, 4s … max 60s).
+ * Permanent errors (4xx, auth) are not retried.
+ */
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isRetryable(err) || attempt === maxRetries) throw err;
+      const delay = Math.min(1000 * 2 ** attempt, 60_000);
+      console.error(`[retry] attempt ${attempt + 1}/${maxRetries} failed — retrying in ${delay / 1000}s`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
+/**
  * GateWanderers typed API client.
  */
 export class ApiClient {
@@ -24,31 +59,38 @@ export class ApiClient {
     body?: unknown,
     auth = false
   ): Promise<T> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    return withRetry(async () => {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
 
-    if (auth) {
-      if (!this.token) {
-        throw new Error("Not authenticated. Please run 'login' first.");
+      if (auth) {
+        if (!this.token) {
+          throw new Error("Not authenticated. Please run 'login' first.");
+        }
+        headers["Authorization"] = `Bearer ${this.token}`;
       }
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
 
-    const response = await fetch(`${this.baseURL}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      const response = await fetch(`${this.baseURL}${path}`, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+
+      // 5xx → retryable; 4xx → permanent error
+      if (response.status >= 500) {
+        throw new RetryableError(response.status);
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const err = data as ErrorResponse;
+        throw new Error(err.error ?? `HTTP ${response.status}`);
+      }
+
+      return data as T;
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      const err = data as ErrorResponse;
-      throw new Error(err.error ?? `HTTP ${response.status}`);
-    }
-
-    return data as T;
   }
 
   /**
