@@ -11,6 +11,8 @@ import * as readline from "node:readline";
 import { loadConfig, saveToken } from "./config.ts";
 import { ApiClient, buildStreamURL } from "./api.ts";
 import { createProvider } from "./llm.ts";
+import { Dashboard } from "./dashboard.ts";
+import type { DashboardState } from "./dashboard.ts";
 import type { Faction, Playstyle, RegisterRequest } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -218,40 +220,64 @@ async function cmdAgent(): Promise<void> {
   }
 
   const maxRetries = config.max_retries ?? 5;
-  const llm = createProvider(config.llm!);
-  const client = new ApiClient(config.server_url, config.token, maxRetries);
-  let lang: string = "en";
-  let retryDelay = 1000; // ms — WS reconnect backoff, max 30s
+  const llm        = createProvider(config.llm!);
+  const client     = new ApiClient(config.server_url, config.token, maxRetries);
+  const dash       = new Dashboard();
+  let retryDelay   = 1000; // ms — WS reconnect backoff, max 30s
 
-  // Graceful shutdown: set this flag via SIGINT; the loop exits after the
-  // current tick action completes so we never leave an action half-done.
+  // Dashboard state — updated incrementally each tick.
+  const ds: DashboardState = {
+    tick:          0,
+    agentName:     '—',
+    faction:       '—',
+    credits:       0,
+    xp:            0,
+    shipName:      '—',
+    shipClass:     '—',
+    hullPct:       100,
+    hullCur:       100,
+    hullMax:       100,
+    systemID:      '—',
+    galaxyID:      '—',
+    planetID:      null,
+    recentActions: [],
+    lastDecision:  '—',
+    wsConnected:   false,
+  };
+
+  function addAction(entry: string): void {
+    ds.recentActions.unshift(entry);
+    if (ds.recentActions.length > 5) ds.recentActions.pop();
+  }
+
+  // Graceful shutdown: set via SIGINT; finishes current tick first.
   let shutdownRequested = false;
   let activeWs: WebSocket | null = null;
 
   process.on("SIGINT", () => {
     if (shutdownRequested) {
-      console.log("\nForce exit.");
+      process.stdout.write("\nForce exit.\n");
       process.exit(1);
     }
     shutdownRequested = true;
-    console.log("\n[SIGINT] Shutdown requested — finishing current action, then exiting…");
+    process.stdout.write("\n[SIGINT] Shutdown requested — finishing current action…\n");
     activeWs?.close();
   });
 
   console.log("=== GateWanderers — AI Agent ===");
-  console.log(`LLM provider:  ${llm.name} (${config.llm!.model})`);
-  console.log(`Max API retries: ${maxRetries}`);
-  console.log("Connecting to", config.server_url, "…");
+  console.log(`LLM: ${llm.name} (${config.llm!.model})  |  Server: ${config.server_url}  |  Max retries: ${maxRetries}`);
+  console.log("Connecting…\n");
 
   while (!shutdownRequested) {
     await new Promise<void>((resolve) => {
       const url = buildStreamURL(config.server_url, config.token);
-      const ws = new WebSocket(url);
-      activeWs = ws;
+      const ws  = new WebSocket(url);
+      activeWs  = ws;
 
       ws.onopen = () => {
-        retryDelay = 1000; // reset on successful connect
-        console.log("Connected to game stream.");
+        retryDelay    = 1000;
+        ds.wsConnected = true;
+        dash.render(ds);
       };
 
       ws.onmessage = async (event: MessageEvent) => {
@@ -267,20 +293,37 @@ async function cmdAgent(): Promise<void> {
         const msgType = msg["type"] as string | undefined;
 
         if (msgType === "tick") {
-          const tick = msg["tick"] as number;
-          console.log(`\n--- Tick ${tick} ---`);
+          ds.tick = msg["tick"] as number;
+          dash.render(ds);
 
-          let state;
+          // Fetch state with retry.
+          let agentState;
           try {
-            state = await client.getAgentState();
+            agentState = await client.getAgentState();
           } catch (err) {
-            console.error("Failed to fetch agent state (all retries exhausted):", (err as Error).message);
+            addAction(`✗ State fetch failed: ${(err as Error).message}`);
+            dash.render(ds);
             return;
           }
 
-          const { agent, ship } = state;
-          const hullPct = Math.round((ship.hull_points / ship.max_hull_points) * 100);
-          const prompt = [
+          const { agent, ship } = agentState;
+          ds.agentName = agent.name;
+          ds.faction   = agent.faction;
+          ds.credits   = agent.credits;
+          ds.xp        = agent.experience;
+          ds.shipName  = ship.name;
+          ds.shipClass = ship.class;
+          ds.hullCur   = ship.hull_points;
+          ds.hullMax   = ship.max_hull_points;
+          ds.hullPct   = Math.round((ship.hull_points / ship.max_hull_points) * 100);
+          ds.systemID  = ship.system_id;
+          ds.galaxyID  = ship.galaxy_id;
+          ds.planetID  = ship.planet_id;
+          dash.render(ds);
+
+          // Build LLM prompt.
+          const hullPct = ds.hullPct;
+          const llmPrompt = [
             "You are an AI agent in GateWanderers, a space strategy MMO in the Stargate universe.",
             "",
             "=== YOUR STATUS ===",
@@ -314,62 +357,66 @@ async function cmdAgent(): Promise<void> {
             'Respond with ONLY a JSON object on one line: {"action": "ACTION_NAME"}',
           ].filter((l) => l !== "").join("\n");
 
+          // Ask LLM.
           let action: string;
           try {
-            action = await llm.complete(prompt, state);
+            action = await llm.complete(llmPrompt, agentState);
           } catch (err) {
-            console.error("LLM error (defaulting to EXPLORE):", (err as Error).message);
             action = "EXPLORE";
+            addAction(`✗ LLM error: ${(err as Error).message}`);
           }
-          console.log(`AI chose action: ${action}`);
+          ds.lastDecision = action;
+          dash.render(ds);
 
+          // Submit action with retry.
           try {
             await client.submitAction(action);
-            console.log(`Action ${action} queued for next tick.`);
+            addAction(`✓ ${action}`);
           } catch (err) {
-            console.error("Failed to submit action (all retries exhausted):", (err as Error).message);
+            addAction(`✗ ${action} (submit failed)`);
           }
+          dash.render(ds);
 
-          // If shutdown was requested while we were processing this tick,
-          // close gracefully now that the action is done.
           if (shutdownRequested) {
-            console.log("[shutdown] Action complete. Disconnecting…");
+            process.stdout.write("[shutdown] Action complete. Disconnecting…\n");
             ws.close();
           }
+
         } else if (msgType === "event") {
           const eventData = msg["event"] as Record<string, unknown> | undefined;
           if (eventData) {
-            const payload =
-              lang === "de"
-                ? (eventData["payload_de"] as string)
-                : (eventData["payload_en"] as string);
-            console.log(`[Event] ${payload}`);
+            const payload = (eventData["payload_en"] as string) ?? "";
+            if (payload) addAction(`• ${payload.slice(0, 40)}`);
+            dash.render(ds);
           }
         } else if (msgType === "connected") {
-          console.log(`Stream ready. Current tick: ${msg["tick"]}`);
+          ds.tick = msg["tick"] as number ?? ds.tick;
+          dash.render(ds);
         }
       };
 
-      ws.onerror = (err: Event) => {
-        console.error("WebSocket error:", err);
+      ws.onerror = () => {
+        ds.wsConnected = false;
+        dash.render(ds);
       };
 
       ws.onclose = () => {
-        activeWs = null;
+        activeWs       = null;
+        ds.wsConnected = false;
         if (shutdownRequested) {
           resolve();
           return;
         }
         const jitter = Math.floor(Math.random() * 500);
-        const delay = retryDelay + jitter;
-        console.log(`WebSocket disconnected. Reconnecting in ${(delay / 1000).toFixed(1)}s…`);
+        const delay  = retryDelay + jitter;
+        process.stdout.write(`\nWebSocket disconnected. Reconnecting in ${(delay / 1000).toFixed(1)}s…\n`);
         retryDelay = Math.min(retryDelay * 2, 30_000);
         setTimeout(() => resolve(), delay);
       };
     });
   }
 
-  console.log("Agent stopped. Goodbye.");
+  process.stdout.write("\nAgent stopped. Goodbye.\n");
   process.exit(0);
 }
 
