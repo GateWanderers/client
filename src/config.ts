@@ -15,6 +15,7 @@ const DEFAULTS: Config = {
   server_url: "http://localhost:8080",
   token: "",
   llm: DEFAULT_LLM,
+  max_retries: 5,
 };
 
 /**

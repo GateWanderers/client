@@ -80,6 +80,8 @@ export interface Config {
   token: string;
   /** LLM provider configuration. Replaces the legacy ollama_url/ollama_model fields. */
   llm?: LLMConfig;
+  /** Maximum number of retries for transient API errors. Default: 5. */
+  max_retries?: number;
   /** @deprecated Use llm.base_url instead. */
   ollama_url?: string;
   /** @deprecated Use llm.model instead. */

@@ -206,7 +206,8 @@ async function cmdState(): Promise<void> {
 
 /**
  * Connect to the game stream and run the AI agent loop.
- * Automatically reconnects after 5 seconds on disconnect.
+ * Automatically reconnects with exponential backoff on disconnect.
+ * Handles SIGINT for graceful shutdown (finishes the current tick action first).
  */
 async function cmdAgent(): Promise<void> {
   const config = loadConfig();
@@ -216,20 +217,37 @@ async function cmdAgent(): Promise<void> {
     process.exit(1);
   }
 
+  const maxRetries = config.max_retries ?? 5;
   const llm = createProvider(config.llm!);
-  const client = new ApiClient(config.server_url, config.token);
+  const client = new ApiClient(config.server_url, config.token, maxRetries);
   let lang: string = "en";
-  let retryDelay = 1000; // ms — exponential backoff, max 30s
+  let retryDelay = 1000; // ms — WS reconnect backoff, max 30s
+
+  // Graceful shutdown: set this flag via SIGINT; the loop exits after the
+  // current tick action completes so we never leave an action half-done.
+  let shutdownRequested = false;
+  let activeWs: WebSocket | null = null;
+
+  process.on("SIGINT", () => {
+    if (shutdownRequested) {
+      console.log("\nForce exit.");
+      process.exit(1);
+    }
+    shutdownRequested = true;
+    console.log("\n[SIGINT] Shutdown requested — finishing current action, then exiting…");
+    activeWs?.close();
+  });
 
   console.log("=== GateWanderers — AI Agent ===");
-  console.log(`LLM provider: ${llm.name} (${config.llm!.model})`);
-  console.log("Connecting to", config.server_url, "...");
+  console.log(`LLM provider:  ${llm.name} (${config.llm!.model})`);
+  console.log(`Max API retries: ${maxRetries}`);
+  console.log("Connecting to", config.server_url, "…");
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  while (!shutdownRequested) {
     await new Promise<void>((resolve) => {
       const url = buildStreamURL(config.server_url, config.token);
       const ws = new WebSocket(url);
+      activeWs = ws;
 
       ws.onopen = () => {
         retryDelay = 1000; // reset on successful connect
@@ -237,6 +255,8 @@ async function cmdAgent(): Promise<void> {
       };
 
       ws.onmessage = async (event: MessageEvent) => {
+        if (shutdownRequested) return;
+
         let msg: Record<string, unknown>;
         try {
           msg = JSON.parse(event.data as string) as Record<string, unknown>;
@@ -254,7 +274,7 @@ async function cmdAgent(): Promise<void> {
           try {
             state = await client.getAgentState();
           } catch (err) {
-            console.error("Failed to fetch agent state:", (err as Error).message);
+            console.error("Failed to fetch agent state (all retries exhausted):", (err as Error).message);
             return;
           }
 
@@ -307,7 +327,14 @@ async function cmdAgent(): Promise<void> {
             await client.submitAction(action);
             console.log(`Action ${action} queued for next tick.`);
           } catch (err) {
-            console.error("Failed to submit action:", (err as Error).message);
+            console.error("Failed to submit action (all retries exhausted):", (err as Error).message);
+          }
+
+          // If shutdown was requested while we were processing this tick,
+          // close gracefully now that the action is done.
+          if (shutdownRequested) {
+            console.log("[shutdown] Action complete. Disconnecting…");
+            ws.close();
           }
         } else if (msgType === "event") {
           const eventData = msg["event"] as Record<string, unknown> | undefined;
@@ -328,14 +355,22 @@ async function cmdAgent(): Promise<void> {
       };
 
       ws.onclose = () => {
+        activeWs = null;
+        if (shutdownRequested) {
+          resolve();
+          return;
+        }
         const jitter = Math.floor(Math.random() * 500);
         const delay = retryDelay + jitter;
-        console.log(`WebSocket disconnected. Reconnecting in ${(delay / 1000).toFixed(1)}s...`);
+        console.log(`WebSocket disconnected. Reconnecting in ${(delay / 1000).toFixed(1)}s…`);
         retryDelay = Math.min(retryDelay * 2, 30_000);
         setTimeout(() => resolve(), delay);
       };
     });
   }
+
+  console.log("Agent stopped. Goodbye.");
+  process.exit(0);
 }
 
 // ---------------------------------------------------------------------------
